@@ -12,6 +12,7 @@ export default tseslint.config(
       }
     },
     rules: {
+      'complexity': ['error', 10],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_' }
