@@ -1,7 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { ValidationContext } from '../core/ValidationContext.js';
 import { getCachedRegex, formatValidators } from './format.js';
-import { validateShape } from './index.js';
+import { validateShape } from './registry.js';
 
 export function isSchemaObject(
   schema: unknown

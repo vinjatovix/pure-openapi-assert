@@ -1,7 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { ValidationContext } from '../core/ValidationContext.js';
 import { isSchemaObject } from './types.js';
-import { validateShape } from './index.js';
+import { validateShape } from './registry.js';
 
 export function formatBranchErrors(branchErrors: string[][]): string {
   return branchErrors
