@@ -1,0 +1,266 @@
+openapi: 3.0.3
+info:
+  title: Mock API for Validator Tests
+  version: 1.0.0
+paths:
+  /test/formats:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [uuid, email, date, dateTime, ipv4, hostname, uri]
+                properties:
+                  uuid:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                    format: email
+                  date:
+                    type: string
+                    format: date
+                  dateTime:
+                    type: string
+                    format: date-time
+                  ipv4:
+                    type: string
+                    format: ipv4
+                  hostname:
+                    type: string
+                    format: hostname
+                  uri:
+                    type: string
+                    format: uri
+
+  /test/constraints/numbers:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valMin, valMax, valExMin, valExMax, valMultiple]
+                properties:
+                  valMin:
+                    type: number
+                    minimum: 10
+                  valMax:
+                    type: number
+                    maximum: 100
+                  valExMin:
+                    type: number
+                    minimum: 5
+                    exclusiveMinimum: true
+                  valExMax:
+                    type: number
+                    maximum: 50
+                    exclusiveMaximum: true
+                  valMultiple:
+                    type: number
+                    multipleOf: 2.5
+
+  /test/constraints/strings:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valStr]
+                properties:
+                  valStr:
+                    type: string
+                    minLength: 3
+                    maxLength: 10
+                    pattern: '^[a-z]+$'
+
+  /test/constraints/arrays:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valArr]
+                properties:
+                  valArr:
+                    type: array
+                    minItems: 2
+                    maxItems: 4
+                    uniqueItems: true
+                    items:
+                      type: string
+
+  /test/objects/strict:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                minProperties: 1
+                maxProperties: 2
+                properties:
+                  allowedField:
+                    type: string
+                  anotherAllowed:
+                    type: string
+
+  /test/objects/additional-schema:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  required: [nestedVal]
+                  properties:
+                    nestedVal:
+                      type: number
+                properties:
+                  declaredField:
+                    type: string
+
+  /test/polymorphism/anyof:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    anyOf:
+                      - type: object
+                        required: [type, valA]
+                        properties:
+                          type:
+                            type: string
+                            enum: [A]
+                          valA:
+                            type: string
+                      - type: object
+                        required: [type, valB]
+                        properties:
+                          type:
+                            type: string
+                            enum: [B]
+                          valB:
+                            type: number
+
+  /test/polymorphism/oneof:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    oneOf:
+                      - type: object
+                        required: [isX]
+                        properties:
+                          isX:
+                            type: boolean
+                      - type: object
+                        required: [isY]
+                        properties:
+                          isY:
+                            type: boolean
+
+  /test/polymorphism/allof:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    allOf:
+                      - type: object
+                        required: [baseField]
+                        properties:
+                          baseField:
+                            type: string
+                      - type: object
+                        required: [extraField]
+                        properties:
+                          extraField:
+                            type: number
+
+  /test/nested:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, tags]
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                        aliases:
+                          type: array
+                          nullable: true
+                          items:
+                            type: string
+                        metadata:
+                          type: object
+                          nullable: true
+                          required: [creator, version]
+                          properties:
+                            creator:
+                              type: string
+                            version:
+                              type: number
+                  pagination:
+                    type: object
+                    required: [total]
+                    properties:
+                      total:
+                        type: integer

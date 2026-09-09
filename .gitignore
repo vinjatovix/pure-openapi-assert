@@ -1,0 +1,29 @@
+# Dependency directories
+node_modules/
+.codegraph/
+
+# Build outputs
+dist/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# ESLint cache
+.eslintcache
