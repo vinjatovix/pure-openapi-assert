@@ -1,0 +1,97 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+    contents: read
+    issues: write
+    pull-requests: write
+
+jobs:
+  commitlint:
+    name: Lint Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 12.3.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint Commits
+        run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+  validate:
+    name: Validate Codebase
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 12.3.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Linter
+        run: pnpm run lint
+
+      - name: Run Tests with Coverage
+        run: pnpm run test:coverage
+
+      - name: Run Build
+        run: pnpm run build
+
+      - name: Run Shai-Hulud Integrity Scanner (Warn Only)
+        run: |
+          curl -fsSL --retry 3 --retry-delay 2 https://raw.githubusercontent.com/vinjatovix/shai-hulud-integrity-scanner/6089d9d0423eda64c4002295d235b317deaca6cc/scan-project.sh > /tmp/scan-project.sh
+          chmod +x /tmp/scan-project.sh
+          /tmp/scan-project.sh . --warn-only --exclude-dir=".specify" | tee scan_report.txt
+
+      - name: Comment PR on Medium Risk
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if grep -q "MEDIUM RISK" scan_report.txt; then
+            REPORT_CONTENT=$(cat scan_report.txt)
+            cat << EOF > comment.md
+          ### ⚠️ Shai-Hulud Scanner - Warnings Detected
+          The pipeline completed successfully, but manual review is required for the following security findings:
+
+          \`\`\`text
+          $REPORT_CONTENT
+          \`\`\`
+          EOF
+            gh pr comment ${{ github.event.pull_request.number }} --body-file comment.md
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
