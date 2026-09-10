@@ -13,7 +13,9 @@ vi.mock('@apidevtools/swagger-parser', () => {
 
 describe('loader.ts unit tests', () => {
   it('should throw an error if the spec is null', async () => {
-    vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce(null as unknown as OpenAPIV3.Document);
+    vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce(
+      null as unknown as OpenAPIV3.Document
+    );
 
     await expect(loadSpec('dummy.yaml')).rejects.toThrow(
       'Parsed OpenAPI spec is invalid at'
@@ -21,7 +23,9 @@ describe('loader.ts unit tests', () => {
   });
 
   it('should throw an error if the spec is an array', async () => {
-    vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce([] as unknown as OpenAPIV3.Document);
+    vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce(
+      [] as unknown as OpenAPIV3.Document
+    );
 
     await expect(loadSpec('dummy.yaml')).rejects.toThrow(
       'Parsed OpenAPI spec is invalid at'
@@ -29,7 +33,9 @@ describe('loader.ts unit tests', () => {
   });
 
   it('should throw an error if the spec is a primitive', async () => {
-    vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce('invalid' as unknown as OpenAPIV3.Document);
+    vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce(
+      'invalid' as unknown as OpenAPIV3.Document
+    );
 
     await expect(loadSpec('dummy.yaml')).rejects.toThrow(
       'Parsed OpenAPI spec is invalid at'

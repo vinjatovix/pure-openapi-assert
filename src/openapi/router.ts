@@ -49,6 +49,9 @@ export function matchPath(
   spec: OpenAPIV3.Document,
   inputPath: string
 ): string | null {
+  if (!spec?.paths) {
+    return null;
+  }
   const normalizedPath = normalizePath(inputPath);
 
   const exactMatch = findExactPathMatch(spec, normalizedPath);
