@@ -96,12 +96,13 @@ export function validateStringFormat(args: ValidationArgs<string>): void {
       : undefined;
 
   const formatCheck =
-    customFormatCheck ??
-    (Object.hasOwn(formatRegistry, schema.format)
-      ? formatRegistry[schema.format]
-      : undefined);
+    typeof customFormatCheck === 'function'
+      ? customFormatCheck
+      : Object.hasOwn(formatRegistry, schema.format)
+        ? formatRegistry[schema.format]
+        : undefined;
 
-  if (formatCheck && !formatCheck(value)) {
+  if (typeof formatCheck === 'function' && !formatCheck(value)) {
     ctx.addError(
       `Expected string format '${schema.format}', received '${value}'`
     );
@@ -357,20 +358,35 @@ function getDecimalPlaces(num: number): number {
 
 export function validateMultipleOfNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  const multipleOf = schema.multipleOf;
-  if (multipleOf === undefined) {
+  const multipleOfRaw = schema.multipleOf;
+  if (multipleOfRaw === undefined) {
+    return;
+  }
+  const multipleOfNum = Number(multipleOfRaw);
+  if (
+    isNaN(multipleOfNum) ||
+    !Number.isFinite(multipleOfNum) ||
+    multipleOfNum <= 0
+  ) {
     return;
   }
   const valNum = value as number;
 
   const decimals = Math.max(
-    getDecimalPlaces(multipleOf),
+    getDecimalPlaces(multipleOfNum),
     getDecimalPlaces(valNum)
   );
   const multiplier = Math.pow(10, decimals);
+  if (!Number.isFinite(multiplier) || multiplier === 0) {
+    return;
+  }
 
   const valInt = Math.round(valNum * multiplier);
-  const multipleInt = Math.round(multipleOf * multiplier);
+  const multipleInt = Math.round(multipleOfNum * multiplier);
+
+  if (multipleInt === 0 || !Number.isFinite(multipleInt)) {
+    return;
+  }
 
   if (valInt % multipleInt !== 0) {
     ctx.addError(

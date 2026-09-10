@@ -17,7 +17,11 @@ import {
   validateRequiredFields,
   validateAdditionalProperties,
   validateMultipleOfNumberConstraint,
-  validateMultipleOfConstraint
+  validateMultipleOfConstraint,
+  validateStringFormat,
+  validateMinConstraint,
+  validateMaxConstraint,
+  validateObjectBounds
 } from '../../../src/validators/types.js';
 
 describe('Validators types.ts (Unit)', () => {
@@ -83,7 +87,8 @@ describe('Validators types.ts (Unit)', () => {
       type: 'object',
       properties: {}
     };
-    (circularSchema.properties as Record<string, unknown>).self = circularSchema;
+    (circularSchema.properties as Record<string, unknown>).self =
+      circularSchema;
 
     validateObject({
       value: obj,
@@ -158,10 +163,22 @@ describe('Validators types.ts (Unit)', () => {
     );
   });
 
-  it('should return early from validateMinNumberConstraint if minimum is undefined', () => {
+  it('should return early from validateMinNumberConstraint if minimum is missing', () => {
     const ctx = new ValidationContext();
     validateMinNumberConstraint({
       value: 10,
+      schema: {},
+      ctx,
+      validateShape: vi.fn()
+    });
+    expect(ctx.hasErrors()).toBe(false);
+  });
+
+  it('should return early from validateMinNumberConstraint if minimum is explicitly undefined (JS consumer)', () => {
+    const ctx = new ValidationContext();
+    validateMinNumberConstraint({
+      value: 10,
+      // @ts-expect-error: Explicitly testing runtime resilience against invalid undefined values passed by JS consumers
       schema: { minimum: undefined },
       ctx,
       validateShape: vi.fn()
@@ -169,10 +186,22 @@ describe('Validators types.ts (Unit)', () => {
     expect(ctx.hasErrors()).toBe(false);
   });
 
-  it('should return early from validateMaxNumberConstraint if maximum is undefined', () => {
+  it('should return early from validateMaxNumberConstraint if maximum is missing', () => {
     const ctx = new ValidationContext();
     validateMaxNumberConstraint({
       value: 10,
+      schema: {},
+      ctx,
+      validateShape: vi.fn()
+    });
+    expect(ctx.hasErrors()).toBe(false);
+  });
+
+  it('should return early from validateMaxNumberConstraint if maximum is explicitly undefined (JS consumer)', () => {
+    const ctx = new ValidationContext();
+    validateMaxNumberConstraint({
+      value: 10,
+      // @ts-expect-error: Explicitly testing runtime resilience against invalid undefined values passed by JS consumers
       schema: { maximum: undefined },
       ctx,
       validateShape: vi.fn()
@@ -535,7 +564,11 @@ describe('Validators types.ts (Unit)', () => {
       const ctx = new ValidationContext();
       validateMinBigIntConstraint({
         value: '9',
-        schema: { type: 'string', format: 'int64', minimum: '10.0' as unknown as number },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: '10.0' as unknown as number
+        },
         ctx,
         validateShape: vi.fn()
       });
@@ -569,7 +602,11 @@ describe('Validators types.ts (Unit)', () => {
       const ctx = new ValidationContext();
       validateMinBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', minimum: 'not-a-number' as unknown as number },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: 'not-a-number' as unknown as number
+        },
         ctx,
         validateShape: vi.fn()
       });
@@ -625,7 +662,12 @@ describe('Validators types.ts (Unit)', () => {
       const ctx1 = new ValidationContext();
       validateMinBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', minimum: 10, exclusiveMinimum: true },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: 10,
+          exclusiveMinimum: true
+        },
         ctx: ctx1,
         validateShape: vi.fn()
       });
@@ -635,7 +677,12 @@ describe('Validators types.ts (Unit)', () => {
       const ctx2 = new ValidationContext();
       validateMinBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', minimum: 10, exclusiveMinimum: false },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: 10,
+          exclusiveMinimum: false
+        },
         ctx: ctx2,
         validateShape: vi.fn()
       });
@@ -645,7 +692,12 @@ describe('Validators types.ts (Unit)', () => {
       const ctx3 = new ValidationContext();
       validateMinBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', minimum: 10.5, exclusiveMinimum: true },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: 10.5,
+          exclusiveMinimum: true
+        },
         ctx: ctx3,
         validateShape: vi.fn()
       });
@@ -655,7 +707,12 @@ describe('Validators types.ts (Unit)', () => {
       const ctx4 = new ValidationContext();
       validateMaxBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', maximum: 10, exclusiveMaximum: true },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          maximum: 10,
+          exclusiveMaximum: true
+        },
         ctx: ctx4,
         validateShape: vi.fn()
       });
@@ -665,7 +722,12 @@ describe('Validators types.ts (Unit)', () => {
       const ctx5 = new ValidationContext();
       validateMaxBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', maximum: 10, exclusiveMaximum: false },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          maximum: 10,
+          exclusiveMaximum: false
+        },
         ctx: ctx5,
         validateShape: vi.fn()
       });
@@ -675,7 +737,12 @@ describe('Validators types.ts (Unit)', () => {
       const ctx6 = new ValidationContext();
       validateMaxBigIntConstraint({
         value: '10',
-        schema: { type: 'string', format: 'int64', maximum: 9.5, exclusiveMaximum: true },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          maximum: 9.5,
+          exclusiveMaximum: true
+        },
         ctx: ctx6,
         validateShape: vi.fn()
       });
@@ -730,7 +797,11 @@ describe('Validators types.ts (Unit)', () => {
       const ctx1 = new ValidationContext();
       validateMinBigIntConstraint({
         value: '-10',
-        schema: { type: 'string', format: 'int64', minimum: null as unknown as number },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: null as unknown as number
+        },
         ctx: ctx1,
         validateShape: vi.fn()
       });
@@ -740,7 +811,11 @@ describe('Validators types.ts (Unit)', () => {
       const ctx2 = new ValidationContext();
       validateMinBigIntConstraint({
         value: '-10',
-        schema: { type: 'string', format: 'int64', minimum: {} as unknown as number },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: {} as unknown as number
+        },
         ctx: ctx2,
         validateShape: vi.fn()
       });
@@ -751,7 +826,11 @@ describe('Validators types.ts (Unit)', () => {
       const ctx = new ValidationContext();
       validateMinBigIntConstraint({
         value: '9',
-        schema: { type: 'string', format: 'int64', minimum: '10' as unknown as number },
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: '10' as unknown as number
+        },
         ctx,
         validateShape: vi.fn()
       });
@@ -825,7 +904,9 @@ describe('Validators types.ts (Unit)', () => {
         validateShape: vi.fn()
       });
       expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain("Key 'extra' is not allowed by OpenAPI schema");
+      expect(ctx.errors[0]).toContain(
+        "Key 'extra' is not allowed by OpenAPI schema"
+      );
     });
 
     it('should handle extremely small multipleOf causing Infinity error and fallback to 0n gracefully', () => {
@@ -858,6 +939,188 @@ describe('Validators types.ts (Unit)', () => {
         ctx,
         validateShape: vi.fn()
       });
+      expect(ctx.hasErrors()).toBe(false);
+    });
+  });
+
+  describe('Robustness tests for string format and multipleOf constraints', () => {
+    it('should fall back to default format registry when customFormats contains a non-function value', () => {
+      const ctx = new ValidationContext();
+      validateStringFormat({
+        value: 'invalid-uuid',
+        schema: { type: 'string', format: 'uuid' },
+        ctx,
+        validateShape: vi.fn(),
+        customFormats: { uuid: true as unknown as (value: string) => boolean }
+      });
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain("Expected string format 'uuid'");
+    });
+
+    it('should pass validation when value is valid and customFormats contains a non-function value', () => {
+      const ctx = new ValidationContext();
+      validateStringFormat({
+        value: '123e4567-e89b-12d3-a456-426614174000',
+        schema: { type: 'string', format: 'uuid' },
+        ctx,
+        validateShape: vi.fn(),
+        customFormats: { uuid: true as unknown as (value: string) => boolean }
+      });
+      expect(ctx.hasErrors()).toBe(false);
+    });
+
+    it('should robustly handle validateMultipleOfNumberConstraint without crashing or returning NaN', () => {
+      // 1. multipleOf is 0
+      const ctx0 = new ValidationContext();
+      expect(() => {
+        validateMultipleOfNumberConstraint({
+          value: 10,
+          schema: { type: 'number', multipleOf: 0 },
+          ctx: ctx0,
+          validateShape: vi.fn()
+        });
+      }).not.toThrow();
+      expect(ctx0.hasErrors()).toBe(false);
+
+      // 2. multipleOf is negative
+      const ctxNeg = new ValidationContext();
+      expect(() => {
+        validateMultipleOfNumberConstraint({
+          value: 10,
+          schema: { type: 'number', multipleOf: -2 },
+          ctx: ctxNeg,
+          validateShape: vi.fn()
+        });
+      }).not.toThrow();
+      expect(ctxNeg.hasErrors()).toBe(false);
+
+      // 3. multipleOf is non-numeric
+      const ctxNonNum = new ValidationContext();
+      expect(() => {
+        validateMultipleOfNumberConstraint({
+          value: 10,
+          schema: {
+            type: 'number',
+            multipleOf: 'not-a-number' as unknown as number
+          },
+          ctx: ctxNonNum,
+          validateShape: vi.fn()
+        });
+      }).not.toThrow();
+      expect(ctxNonNum.hasErrors()).toBe(false);
+
+      // 4. multipleOf is Infinity (overflows/finite limit check)
+      const ctxInf = new ValidationContext();
+      expect(() => {
+        validateMultipleOfNumberConstraint({
+          value: 10,
+          schema: { type: 'number', multipleOf: Infinity },
+          ctx: ctxInf,
+          validateShape: vi.fn()
+        });
+      }).not.toThrow();
+      expect(ctxInf.hasErrors()).toBe(false);
+
+      // 5. limits that overflow to Infinity during multiplier calculation (e.g. multiplier overflows)
+      const ctxMultInf = new ValidationContext();
+      expect(() => {
+        validateMultipleOfNumberConstraint({
+          value: 10,
+          schema: { type: 'number', multipleOf: Number.MIN_VALUE }, // extremely small multipleOf causes pow(10, decimals) to be Infinity
+          ctx: ctxMultInf,
+          validateShape: vi.fn()
+        });
+      }).not.toThrow();
+      expect(ctxMultInf.hasErrors()).toBe(false);
+
+      // 6. limits that overflow during rounding/multiplication calculation (multipleInt is Infinity)
+      const ctxRoundInf = new ValidationContext();
+      expect(() => {
+        validateMultipleOfNumberConstraint({
+          value: 1.0000000001,
+          schema: { type: 'number', multipleOf: 1e300 }, // 1e300 * 1e10 overflows to Infinity
+          ctx: ctxRoundInf,
+          validateShape: vi.fn()
+        });
+      }).not.toThrow();
+      expect(ctxRoundInf.hasErrors()).toBe(false);
+    });
+  });
+
+  describe('Fallback handling and edge-case boundaries', () => {
+    it('should bypass numeric constraint validations when the value is neither a number nor an int64 string', () => {
+      const ctx = new ValidationContext();
+      const args = {
+        value: true,
+        schema: {
+          minimum: 5,
+          maximum: 10,
+          multipleOf: 2
+        },
+        ctx,
+        validateShape: vi.fn()
+      };
+
+      validateMinConstraint(args);
+      validateMaxConstraint(args);
+      validateMultipleOfConstraint(args);
+
+      expect(ctx.hasErrors()).toBe(false);
+    });
+
+    it('should correctly report "null" as the received type when array validation fails for a null value', () => {
+      const ctx = new ValidationContext();
+      validateArray({
+        value: null,
+        schema: { type: 'array', items: {} },
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Expected array, received null');
+    });
+
+    it('should default properties count to 0 in validateObjectBounds when keys array is omitted', () => {
+      const ctx = new ValidationContext();
+      validateObjectBounds({
+        value: {},
+        schema: { minProperties: 1 },
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Object has 0 properties, minimum is 1');
+    });
+
+    it('should default properties to an empty object in validateAdditionalProperties when schema properties are omitted', () => {
+      const ctx = new ValidationContext();
+      validateAdditionalProperties({
+        value: { extraProp: 'val' },
+        schema: {
+          additionalProperties: false
+        },
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain("Key 'extraProp' is not allowed by OpenAPI schema");
+    });
+
+    it('should bypass shape validation in validateAdditionalProperties when additionalProperties is a reference object', () => {
+      const ctx = new ValidationContext();
+      validateAdditionalProperties({
+        value: { extraProp: 'val' },
+        schema: {
+          properties: {},
+          additionalProperties: { $ref: '#/components/schemas/SomeSchema' }
+        },
+        ctx,
+        validateShape: vi.fn()
+      });
+
       expect(ctx.hasErrors()).toBe(false);
     });
   });
