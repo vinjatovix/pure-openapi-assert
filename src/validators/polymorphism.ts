@@ -1,7 +1,5 @@
-import type { OpenAPIV3 } from 'openapi-types';
 import { ValidationContext } from '../core/ValidationContext.js';
-import { isSchemaObject } from './types.js';
-import { validateShape } from './index.js';
+import { isSchemaObject, type ValidationArgs } from './types.js';
 
 export function formatBranchErrors(branchErrors: string[][]): string {
   return branchErrors
@@ -17,93 +15,90 @@ export function formatBranchErrors(branchErrors: string[][]): string {
     .join('\n');
 }
 
-export function validateAllOf(
-  value: unknown,
-  schemas: (OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject)[],
-  ctx: ValidationContext
-): void {
-  for (const subSchema of schemas) {
-    if (isSchemaObject(subSchema)) {
-      validateShape(value, subSchema, ctx);
+export function validateAllOf(args: ValidationArgs<unknown>): void {
+  const { value, schema, ctx, validateShape } = args;
+  const schemas = schema.allOf;
+  if (schemas) {
+    for (const subSchema of schemas) {
+      if (isSchemaObject(subSchema)) {
+        validateShape({ value, schema: subSchema, ctx, validateShape });
+      }
     }
   }
 }
 
-export function validateAnyOf(
-  value: unknown,
-  schemas: (OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject)[],
-  ctx: ValidationContext
-): void {
-  let passedAtLeastOne = false;
-  const branchErrors: string[][] = [];
+export function validateAnyOf(args: ValidationArgs<unknown>): void {
+  const { value, schema, ctx, validateShape } = args;
+  const schemas = schema.anyOf;
+  if (schemas) {
+    let passedAtLeastOne = false;
+    const branchErrors: string[][] = [];
 
-  for (let i = 0; i < schemas.length; i++) {
-    const subSchema = schemas[i];
-    if (!isSchemaObject(subSchema)) continue;
+    for (let i = 0; i < schemas.length; i++) {
+      const subSchema = schemas[i];
+      if (!isSchemaObject(subSchema)) continue;
 
-    const subCtx = new ValidationContext();
-    subCtx.path = [...ctx.path];
-    validateShape(value, subSchema, subCtx);
+      const subCtx = new ValidationContext();
+      subCtx.currentPath = ctx.currentPath;
+      validateShape({ value, schema: subSchema, ctx: subCtx, validateShape });
 
-    if (!subCtx.hasErrors()) {
-      passedAtLeastOne = true;
-      break;
-    } else {
-      branchErrors.push(subCtx.errors);
+      if (!subCtx.hasErrors()) {
+        passedAtLeastOne = true;
+        break;
+      } else {
+        branchErrors.push(subCtx.errors);
+      }
     }
-  }
 
-  if (!passedAtLeastOne) {
-    const formatted = formatBranchErrors(branchErrors);
-    ctx.addError(`Failed anyOf:\n${formatted}`);
+    if (!passedAtLeastOne) {
+      const formatted = formatBranchErrors(branchErrors);
+      ctx.addError(`Failed anyOf:\n${formatted}`);
+    }
   }
 }
 
-export function validateOneOf(
-  value: unknown,
-  schemas: (OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject)[],
-  ctx: ValidationContext
-): void {
-  let passedCount = 0;
-  const branchErrors: string[][] = [];
+export function validateOneOf(args: ValidationArgs<unknown>): void {
+  const { value, schema, ctx, validateShape } = args;
+  const schemas = schema.oneOf;
+  if (schemas) {
+    let passedCount = 0;
+    const branchErrors: string[][] = [];
 
-  for (let i = 0; i < schemas.length; i++) {
-    const subSchema = schemas[i];
-    if (!isSchemaObject(subSchema)) continue;
+    for (let i = 0; i < schemas.length; i++) {
+      const subSchema = schemas[i];
+      if (!isSchemaObject(subSchema)) continue;
 
-    const subCtx = new ValidationContext();
-    subCtx.path = [...ctx.path];
-    validateShape(value, subSchema, subCtx);
+      const subCtx = new ValidationContext();
+      subCtx.currentPath = ctx.currentPath;
+      validateShape({ value, schema: subSchema, ctx: subCtx, validateShape });
 
-    if (!subCtx.hasErrors()) {
-      passedCount++;
-    } else {
-      branchErrors.push(subCtx.errors);
+      if (!subCtx.hasErrors()) {
+        passedCount++;
+      } else {
+        branchErrors.push(subCtx.errors);
+      }
     }
-  }
 
-  if (passedCount !== 1) {
-    const formatted = formatBranchErrors(branchErrors);
-    ctx.addError(
-      `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`
-    );
+    if (passedCount !== 1) {
+      const formatted = formatBranchErrors(branchErrors);
+      ctx.addError(
+        `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`
+      );
+    }
   }
 }
 
-export function checkPolymorphism(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function checkPolymorphism(args: ValidationArgs): void {
+  const { schema } = args;
   if (schema.allOf) {
-    validateAllOf(value, schema.allOf, ctx);
+    validateAllOf(args);
   }
 
   if (schema.anyOf) {
-    validateAnyOf(value, schema.anyOf, ctx);
+    validateAnyOf(args);
   }
 
   if (schema.oneOf) {
-    validateOneOf(value, schema.oneOf, ctx);
+    validateOneOf(args);
   }
 }

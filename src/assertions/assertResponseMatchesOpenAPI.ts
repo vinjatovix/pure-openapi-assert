@@ -44,7 +44,7 @@ export async function assertResponseMatchesOpenAPI({
 
   const ctx = new ValidationContext();
   ctx.pushPath('body');
-  validateShape(body, schema, ctx);
+  validateShape({ value: body, schema, ctx, validateShape });
   ctx.popPath();
 
   if (ctx.hasErrors()) {

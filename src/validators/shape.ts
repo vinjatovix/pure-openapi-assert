@@ -1,0 +1,46 @@
+import { checkPolymorphism } from './polymorphism.js';
+import { validateArray, validateBaseType, validateObject, type ValidationArgs } from './types.js';
+
+const validators: Record<
+  string,
+  (args: ValidationArgs) => void
+> = {
+  string: validateBaseType,
+  number: validateBaseType,
+  integer: validateBaseType,
+  boolean: validateBaseType,
+  array: validateArray,
+  object: validateObject
+};
+
+export function validateShape(args: ValidationArgs): void {
+  const { value, schema, ctx } = args;
+
+  if (schema.writeOnly && value !== undefined) {
+    ctx.addError('Field is writeOnly and must not be present in the response');
+    return;
+  }
+
+  if (value === null) {
+    if (!schema.nullable) {
+      ctx.addError('Field is not nullable but received null');
+    }
+    return;
+  }
+
+  if (value === undefined) {
+    ctx.addError('Field is required but received undefined');
+    return;
+  }
+
+  checkPolymorphism(args);
+
+  if (schema.type) {
+    const validator = validators[schema.type];
+    if (validator) {
+      validator(args);
+    } else {
+      validateBaseType(args);
+    }
+  }
+}

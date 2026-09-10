@@ -1,7 +1,20 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { ValidationContext } from '../core/ValidationContext.js';
 import { getCachedRegex, formatValidators } from './format.js';
-import { validateShape } from './index.js';
+
+export interface ValidationArgs<T = unknown> {
+  value: T;
+  schema: OpenAPIV3.SchemaObject;
+  ctx: ValidationContext;
+  keys?: string[];
+  
+  /**
+   * Injected orchestrator function (Dependency Injection).
+   * Passed explicitly to break cyclic module imports between structural validators
+   * (arrays/objects) and the root shape validator, ensuring CJS/ESM safety.
+   */
+  validateShape: (args: ValidationArgs) => void;
+}
 
 export function isSchemaObject(
   schema: unknown
@@ -16,11 +29,8 @@ export const typeValidators: Record<string, (value: unknown) => boolean> = {
   boolean: (val) => typeof val === 'boolean'
 };
 
-export function validateEnum(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateEnum(args: ValidationArgs): void {
+  const { value, schema, ctx } = args;
   if (schema.enum) {
     if (!schema.enum.includes(value)) {
       ctx.addError(
@@ -30,11 +40,8 @@ export function validateEnum(
   }
 }
 
-export function validateTypeCheck(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): boolean {
+export function validateTypeCheck(args: ValidationArgs): boolean {
+  const { value, schema, ctx } = args;
   const expectedType = schema.type;
   if (expectedType) {
     const isTypeValid = typeValidators[expectedType];
@@ -48,11 +55,8 @@ export function validateTypeCheck(
   return true;
 }
 
-export function validateStringConstraints(
-  value: string,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateStringConstraints(args: ValidationArgs<string>): void {
+  const { value, schema, ctx } = args;
   if (schema.minLength !== undefined && value.length < schema.minLength) {
     ctx.addError(
       `String length ${value.length} is less than minimum ${schema.minLength}`
@@ -79,11 +83,8 @@ export function validateStringConstraints(
   }
 }
 
-export function validateMinConstraint(
-  value: number,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateMinConstraint(args: ValidationArgs<number>): void {
+  const { value, schema, ctx } = args;
   if (schema.minimum !== undefined) {
     const isViolation = schema.exclusiveMinimum
       ? value <= schema.minimum
@@ -96,11 +97,8 @@ export function validateMinConstraint(
   }
 }
 
-export function validateMaxConstraint(
-  value: number,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateMaxConstraint(args: ValidationArgs<number>): void {
+  const { value, schema, ctx } = args;
   if (schema.maximum !== undefined) {
     const isViolation = schema.exclusiveMaximum
       ? value >= schema.maximum
@@ -113,11 +111,8 @@ export function validateMaxConstraint(
   }
 }
 
-export function validateMultipleOfConstraint(
-  value: number,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateMultipleOfConstraint(args: ValidationArgs<number>): void {
+  const { value, schema, ctx } = args;
   if (schema.multipleOf !== undefined) {
     const isMultiple = Number.isInteger(
       Number((value / schema.multipleOf).toFixed(5))
@@ -130,39 +125,29 @@ export function validateMultipleOfConstraint(
   }
 }
 
-export function validateNumberConstraints(
-  value: number,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
-  validateMinConstraint(value, schema, ctx);
-  validateMaxConstraint(value, schema, ctx);
-  validateMultipleOfConstraint(value, schema, ctx);
+export function validateNumberConstraints(args: ValidationArgs<number>): void {
+  validateMinConstraint(args);
+  validateMaxConstraint(args);
+  validateMultipleOfConstraint(args);
 }
 
-export function validateBaseType(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
-  validateEnum(value, schema, ctx);
+export function validateBaseType(args: ValidationArgs): void {
+  validateEnum(args);
 
-  if (!validateTypeCheck(value, schema, ctx)) {
+  if (!validateTypeCheck(args)) {
     return;
   }
 
+  const { value } = args;
   if (typeof value === 'string') {
-    validateStringConstraints(value, schema, ctx);
+    validateStringConstraints(args as ValidationArgs<string>);
   } else if (typeof value === 'number') {
-    validateNumberConstraints(value, schema, ctx);
+    validateNumberConstraints(args as ValidationArgs<number>);
   }
 }
 
-export function validateArrayBounds(
-  value: unknown[],
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
+  const { value, schema, ctx } = args;
   if (schema.minItems !== undefined && value.length < schema.minItems) {
     ctx.addError(
       `Array has ${value.length} items, minimum is ${schema.minItems}`
@@ -175,11 +160,8 @@ export function validateArrayBounds(
   }
 }
 
-export function validateArrayUnique(
-  value: unknown[],
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
+  const { value, schema, ctx } = args;
   if (schema.uniqueItems) {
     const uniqueValues = new Set(value.map((item) => JSON.stringify(item)));
     if (uniqueValues.size !== value.length) {
@@ -188,11 +170,8 @@ export function validateArrayUnique(
   }
 }
 
-export function validateArrayItems(
-  value: unknown[],
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateArrayItems(args: ValidationArgs<unknown[]>): void {
+  const { value, schema, ctx, validateShape } = args;
   const arraySchema = schema as OpenAPIV3.ArraySchemaObject;
   const itemsSchema: unknown = arraySchema.items;
   if (!isSchemaObject(itemsSchema)) {
@@ -201,16 +180,13 @@ export function validateArrayItems(
 
   for (let i = 0; i < value.length; i++) {
     ctx.pushPath(i);
-    validateShape(value[i], itemsSchema, ctx);
+    validateShape({ value: value[i], schema: itemsSchema, ctx, validateShape });
     ctx.popPath();
   }
 }
 
-export function validateArray(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateArray(args: ValidationArgs): void {
+  const { value, ctx } = args;
   if (!Array.isArray(value)) {
     ctx.addError(
       `Expected array, received ${value === null ? 'null' : typeof value}`
@@ -223,9 +199,10 @@ export function validateArray(
   }
   ctx.visited.add(value);
 
-  validateArrayBounds(value, schema, ctx);
-  validateArrayUnique(value, schema, ctx);
-  validateArrayItems(value, schema, ctx);
+  const arrayArgs = args as ValidationArgs<unknown[]>;
+  validateArrayBounds(arrayArgs);
+  validateArrayUnique(arrayArgs);
+  validateArrayItems(arrayArgs);
 
   ctx.visited.delete(value);
 }
@@ -234,11 +211,9 @@ function isNotValidObject(value: unknown): boolean {
   return typeof value !== 'object' || value === null || Array.isArray(value);
 }
 
-export function validateObjectBounds(
-  keysCount: number,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateObjectBounds(args: ValidationArgs): void {
+  const { schema, ctx, keys } = args;
+  const keysCount = keys ? keys.length : 0;
   if (
     schema.minProperties !== undefined &&
     keysCount < schema.minProperties
@@ -257,33 +232,30 @@ export function validateObjectBounds(
   }
 }
 
-export function validateRequiredFields(
-  obj: Record<string, unknown>,
-  required: string[],
-  ctx: ValidationContext
-): void {
-  for (const key of required) {
-    if (obj[key] === undefined) {
-      ctx.pushPath(key);
-      ctx.addError('Missing required field');
-      ctx.popPath();
+export function validateRequiredFields(args: ValidationArgs<Record<string, unknown>>): void {
+  const { value: obj, schema, ctx } = args;
+  const required = schema.required;
+  if (required) {
+    for (const key of required) {
+      if (obj[key] === undefined) {
+        ctx.pushPath(key);
+        ctx.addError('Missing required field');
+        ctx.popPath();
+      }
     }
   }
 }
 
-export function validateAdditionalProperties(
-  obj: Record<string, unknown>,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateAdditionalProperties(args: ValidationArgs<Record<string, unknown>>): void {
+  const { value: obj, schema, ctx, keys, validateShape } = args;
   const additionalSchema = schema.additionalProperties;
   if (additionalSchema !== undefined && additionalSchema !== true) {
     const properties = schema.properties ?? {};
     const allowedKeys = new Set(Object.keys(properties));
     const isSchema = isSchemaObject(additionalSchema);
-    const keys = Object.keys(obj);
+    const activeKeys = keys ?? Object.keys(obj);
 
-    for (const key of keys) {
+    for (const key of activeKeys) {
       if (allowedKeys.has(key)) continue;
 
       if (additionalSchema === false) {
@@ -295,34 +267,28 @@ export function validateAdditionalProperties(
 
       if (isSchema) {
         ctx.pushPath(key);
-        validateShape(obj[key], additionalSchema, ctx);
+        validateShape({ value: obj[key], schema: additionalSchema, ctx, validateShape });
         ctx.popPath();
       }
     }
   }
 }
 
-export function validateDeclaredProperties(
-  obj: Record<string, unknown>,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateDeclaredProperties(args: ValidationArgs<Record<string, unknown>>): void {
+  const { value: obj, schema, ctx, validateShape } = args;
   const properties = schema.properties ?? {};
   for (const [key, propSchema] of Object.entries(properties)) {
     const propValue = obj[key];
     if (propValue === undefined || !isSchemaObject(propSchema)) continue;
 
     ctx.pushPath(key);
-    validateShape(propValue, propSchema, ctx);
+    validateShape({ value: propValue, schema: propSchema, ctx, validateShape });
     ctx.popPath();
   }
 }
 
-export function validateObject(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateObject(args: ValidationArgs): void {
+  const { value, schema, ctx } = args;
   if (isNotValidObject(value)) {
     ctx.addError(
       `Expected object, received ${value === null ? 'null' : typeof value}`
@@ -338,15 +304,22 @@ export function validateObject(
   ctx.visited.add(obj);
 
   const keys = Object.keys(obj);
+  const objectArgs: ValidationArgs<Record<string, unknown>> = {
+    value: obj,
+    schema,
+    ctx,
+    keys,
+    validateShape: args.validateShape
+  };
 
-  validateObjectBounds(keys.length, schema, ctx);
+  validateObjectBounds(objectArgs);
 
   if (schema.required) {
-    validateRequiredFields(obj, schema.required, ctx);
+    validateRequiredFields(objectArgs);
   }
 
-  validateAdditionalProperties(obj, schema, ctx);
-  validateDeclaredProperties(obj, schema, ctx);
+  validateAdditionalProperties(objectArgs);
+  validateDeclaredProperties(objectArgs);
 
   ctx.visited.delete(obj);
 }
