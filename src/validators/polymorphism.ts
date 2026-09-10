@@ -16,75 +16,96 @@ export function formatBranchErrors(branchErrors: string[][]): string {
 }
 
 export function validateAllOf(args: ValidationArgs<unknown>): void {
-  const { value, schema, ctx, validateShape } = args;
+  const { value, schema, ctx, validateShape, customFormats } = args;
   const schemas = schema.allOf;
-  if (schemas) {
-    for (const subSchema of schemas) {
-      if (isSchemaObject(subSchema)) {
-        validateShape({ value, schema: subSchema, ctx, validateShape });
-      }
+  if (!schemas) {
+    return;
+  }
+  for (const subSchema of schemas) {
+    if (isSchemaObject(subSchema)) {
+      validateShape({
+        value,
+        schema: subSchema,
+        ctx,
+        validateShape,
+        customFormats
+      });
     }
   }
 }
 
 export function validateAnyOf(args: ValidationArgs<unknown>): void {
-  const { value, schema, ctx, validateShape } = args;
+  const { value, schema, ctx, validateShape, customFormats } = args;
   const schemas = schema.anyOf;
-  if (schemas) {
-    let passedAtLeastOne = false;
-    const branchErrors: string[][] = [];
+  if (!schemas) {
+    return;
+  }
+  let passedAtLeastOne = false;
+  const branchErrors: string[][] = [];
 
-    for (let i = 0; i < schemas.length; i++) {
-      const subSchema = schemas[i];
-      if (!isSchemaObject(subSchema)) continue;
+  for (let i = 0; i < schemas.length; i++) {
+    const subSchema = schemas[i];
+    if (!isSchemaObject(subSchema)) continue;
 
-      const subCtx = new ValidationContext();
-      subCtx.currentPath = ctx.currentPath;
-      validateShape({ value, schema: subSchema, ctx: subCtx, validateShape });
+    const subCtx = new ValidationContext();
+    subCtx.currentPath = ctx.currentPath;
+    validateShape({
+      value,
+      schema: subSchema,
+      ctx: subCtx,
+      validateShape,
+      customFormats
+    });
 
-      if (!subCtx.hasErrors()) {
-        passedAtLeastOne = true;
-        break;
-      } else {
-        branchErrors.push(subCtx.errors);
-      }
+    if (!subCtx.hasErrors()) {
+      passedAtLeastOne = true;
+      break;
+    } else {
+      branchErrors.push(subCtx.errors);
     }
+  }
 
-    if (!passedAtLeastOne) {
-      const formatted = formatBranchErrors(branchErrors);
-      ctx.addError(`Failed anyOf:\n${formatted}`);
-    }
+  if (!passedAtLeastOne) {
+    const formatted = formatBranchErrors(branchErrors);
+    ctx.addError(`Failed anyOf:\n${formatted}`);
   }
 }
 
 export function validateOneOf(args: ValidationArgs<unknown>): void {
-  const { value, schema, ctx, validateShape } = args;
+  const { value, schema, ctx, validateShape, customFormats } = args;
   const schemas = schema.oneOf;
-  if (schemas) {
-    let passedCount = 0;
-    const branchErrors: string[][] = [];
+  if (!schemas) {
+    return;
+  }
+  let passedCount = 0;
+  const branchErrors: string[][] = [];
 
-    for (let i = 0; i < schemas.length; i++) {
-      const subSchema = schemas[i];
-      if (!isSchemaObject(subSchema)) continue;
+  for (let i = 0; i < schemas.length; i++) {
+    const subSchema = schemas[i];
+    if (!isSchemaObject(subSchema)) continue;
 
-      const subCtx = new ValidationContext();
-      subCtx.currentPath = ctx.currentPath;
-      validateShape({ value, schema: subSchema, ctx: subCtx, validateShape });
+    const subCtx = new ValidationContext();
+    subCtx.currentPath = ctx.currentPath;
+    validateShape({
+      value,
+      schema: subSchema,
+      ctx: subCtx,
+      validateShape,
+      customFormats
+    });
 
-      if (!subCtx.hasErrors()) {
-        passedCount++;
-      } else {
-        branchErrors.push(subCtx.errors);
-      }
+    if (!subCtx.hasErrors()) {
+      passedCount++;
+    } else {
+      branchErrors.push(subCtx.errors);
     }
+  }
 
-    if (passedCount !== 1) {
-      const formatted = formatBranchErrors(branchErrors);
-      ctx.addError(
-        `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`
-      );
-    }
+  if (passedCount !== 1) {
+    const formatted = formatBranchErrors(branchErrors);
+    ctx.addError(
+      `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`
+    );
   }
 }
 

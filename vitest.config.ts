@@ -7,11 +7,12 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
+      exclude: ['dist/**', 'eslint.config.js', 'tsup.config.ts', 'vitest.config.ts'],
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-        statements: 80
+        lines: 95,
+        functions: 95,
+        branches: 95,
+        statements: 95
       }
     }
   }

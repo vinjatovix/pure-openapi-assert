@@ -28,7 +28,6 @@ export class ValidationContext {
     let result = '';
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
-      if (segment === undefined) continue;
       if (typeof segment === 'number') {
         result += `[${segment}]`;
       } else {
