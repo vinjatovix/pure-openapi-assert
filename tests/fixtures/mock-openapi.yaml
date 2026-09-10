@@ -264,3 +264,227 @@ paths:
                     properties:
                       total:
                         type: integer
+
+  /test/formats-extended:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ipv6, byte, int32, int64, float, double]
+                properties:
+                  ipv6:
+                    type: string
+                    format: ipv6
+                  byte:
+                    type: string
+                    format: byte
+                  int32:
+                    type: integer
+                    format: int32
+                  int64:
+                    type: integer
+                    format: int64
+                  float:
+                    type: number
+                    format: float
+                  double:
+                    type: number
+                    format: double
+        '201':
+          description: Created
+          content:
+            application/json: {}
+
+  /test/formats/no-type/int32:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: int32
+
+  /test/formats/no-type/int64:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: int64
+
+  /test/formats/no-type/float:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: float
+
+  /test/formats/no-type/double:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: double
+
+  /test/validation/invalid-minimum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    minimum: 'not-a-number'
+
+  /test/validation/invalid-maximum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    maximum: 'not-a-number'
+
+  /test/validation/invalid-multipleof:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    multipleOf: 'not-a-number'
+
+  /test/validation/bigint-constraints:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    minimum: 10
+                    maximum: 100
+                    multipleOf: 5
+
+  /test/validation/write-only:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: string
+                    writeOnly: true
+
+  /test/validation/nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: string
+                    nullable: true
+
+  /test/dynamic/{id}:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
+
+  /test/polymorphism/ref-object:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    anyOf:
+                      - $ref: '#/components/schemas/SimpleUser'
+
+components:
+  schemas:
+    SimpleUser:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string

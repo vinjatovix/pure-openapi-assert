@@ -1,5 +1,25 @@
+import {
+  BASE64_REGEX,
+  DATE_REGEX,
+  DATE_TIME_REGEX,
+  EMAIL_REGEX,
+  HOSTNAME_REGEX,
+  IPV4_REGEX,
+  IPV6_REGEX,
+  MAX_HOSTNAME_LENGTH,
+  UUID_REGEX
+} from '../core/constants.js';
+
 const regexCache = new Map<string, RegExp>();
 
+/**
+ * Compiles and caches a regular expression from an OpenAPI schema pattern.
+ *
+ * @security This function uses the native RegExp engine. Because it compiles
+ * patterns dynamically from the schema, schemas MUST come from a trusted source.
+ * Processing untrusted schemas could potentially expose the system to
+ * Regular Expression Denial of Service (ReDoS) attacks.
+ */
 export function getCachedRegex(pattern: string): RegExp {
   let rx = regexCache.get(pattern);
   if (!rx) {
@@ -9,25 +29,13 @@ export function getCachedRegex(pattern: string): RegExp {
   return rx;
 }
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EMAIL_REGEX =
-  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const DATE_TIME_REGEX =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
-const IPV4_REGEX =
-  /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-const HOSTNAME_REGEX =
-  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-
 export const isStrictDate = (val: string): boolean => {
   if (!DATE_REGEX.test(val)) return false;
-  const parts = val.split('-');
-  const yearStr = parts[0];
-  const monthStr = parts[1];
-  const dayStr = parts[2];
-  if (!yearStr || !monthStr || !dayStr) return false;
+  const [yearStr, monthStr, dayStr] = val.split('-') as [
+    string,
+    string,
+    string
+  ];
 
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
@@ -44,7 +52,7 @@ export const isStrictDateTime = (val: string): boolean => {
   return isStrictDate(datePart);
 };
 
-export const formatValidators: Record<string, (val: string) => boolean> = {
+export const formatRegistry: Record<string, (val: string) => boolean> = {
   uuid: (val) => UUID_REGEX.test(val),
   email: (val) => EMAIL_REGEX.test(val),
   date: isStrictDate,
@@ -57,6 +65,9 @@ export const formatValidators: Record<string, (val: string) => boolean> = {
       return false;
     }
   },
-  hostname: (val) => val.length <= 255 && HOSTNAME_REGEX.test(val),
-  ipv4: (val) => IPV4_REGEX.test(val)
+  hostname: (val) =>
+    val.length <= MAX_HOSTNAME_LENGTH && HOSTNAME_REGEX.test(val),
+  ipv4: (val) => IPV4_REGEX.test(val),
+  ipv6: (val) => IPV6_REGEX.test(val),
+  byte: (val) => BASE64_REGEX.test(val)
 };

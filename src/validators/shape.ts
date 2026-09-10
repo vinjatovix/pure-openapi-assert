@@ -1,10 +1,12 @@
 import { checkPolymorphism } from './polymorphism.js';
-import { validateArray, validateBaseType, validateObject, type ValidationArgs } from './types.js';
+import {
+  type ValidationArgs,
+  validateArray,
+  validateBaseType,
+  validateObject
+} from './types.js';
 
-const validators: Record<
-  string,
-  (args: ValidationArgs) => void
-> = {
+const validators: Record<string, (args: ValidationArgs) => void> = {
   string: validateBaseType,
   number: validateBaseType,
   integer: validateBaseType,
@@ -35,12 +37,10 @@ export function validateShape(args: ValidationArgs): void {
 
   checkPolymorphism(args);
 
-  if (schema.type) {
-    const validator = validators[schema.type];
-    if (validator) {
-      validator(args);
-    } else {
-      validateBaseType(args);
-    }
+  const validator = schema.type ? validators[schema.type] : undefined;
+  if (validator) {
+    validator(args);
+  } else {
+    validateBaseType(args);
   }
 }
