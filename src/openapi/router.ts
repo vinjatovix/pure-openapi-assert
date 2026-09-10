@@ -1,4 +1,5 @@
 import type { OpenAPIV3 } from 'openapi-types';
+import { DEFAULT_CONTENT_TYPE, DUMMY_BASE_URL } from '../core/constants.js';
 
 const regexCache = new Map<string, RegExp>();
 
@@ -22,14 +23,10 @@ export function convertOpenApiPathToRegExp(openApiPath: string): RegExp {
 
 function findExactPathMatch(
   spec: OpenAPIV3.Document,
-  normalizedPath: string,
-  lowercaseMethod: string
+  normalizedPath: string
 ): string | null {
-  if (!spec.paths) {
-    return null;
-  }
   const pathItem = spec.paths[normalizedPath];
-  if (!pathItem || !(lowercaseMethod in pathItem)) {
+  if (!pathItem) {
     return null;
   }
   return normalizedPath;
@@ -37,18 +34,9 @@ function findExactPathMatch(
 
 function findDynamicPathMatch(
   spec: OpenAPIV3.Document,
-  normalizedPath: string,
-  lowercaseMethod: string
+  normalizedPath: string
 ): string | null {
-  if (!spec.paths) {
-    return null;
-  }
   for (const openApiPath of Object.keys(spec.paths)) {
-    const pathItem = spec.paths[openApiPath];
-    if (!pathItem || !(lowercaseMethod in pathItem)) {
-      continue;
-    }
-
     const pathRegExp = convertOpenApiPathToRegExp(openApiPath);
     if (pathRegExp.test(normalizedPath)) {
       return openApiPath;
@@ -59,21 +47,19 @@ function findDynamicPathMatch(
 
 export function matchPath(
   spec: OpenAPIV3.Document,
-  inputPath: string,
-  method: string
+  inputPath: string
 ): string | null {
   const normalizedPath = normalizePath(inputPath);
-  const lowercaseMethod = method.toLowerCase();
 
-  const exactMatch = findExactPathMatch(spec, normalizedPath, lowercaseMethod);
+  const exactMatch = findExactPathMatch(spec, normalizedPath);
   if (exactMatch) {
     return exactMatch;
   }
-  return findDynamicPathMatch(spec, normalizedPath, lowercaseMethod);
+  return findDynamicPathMatch(spec, normalizedPath);
 }
 
 export function extractPathnameWithoutQueryParams(pathString: string): string {
-  return new URL(pathString, 'http://localhost').pathname;
+  return new URL(pathString, DUMMY_BASE_URL).pathname;
 }
 
 function getOperation(
@@ -82,15 +68,9 @@ function getOperation(
   method: string,
   reqPath: string
 ): OpenAPIV3.OperationObject {
-  if (!spec.paths) {
-    throw new Error('Paths not found in OpenAPI spec');
-  }
   const pathItem = spec.paths[matchedPath];
-  if (!pathItem) {
-    throw new Error(`Operation not found: ${method} ${reqPath}`);
-  }
   const operation =
-    pathItem[method.toLowerCase() as keyof OpenAPIV3.PathItemObject];
+    pathItem?.[method.toLowerCase() as keyof OpenAPIV3.PathItemObject];
 
   if (operation && typeof operation === 'object' && 'responses' in operation) {
     return operation;
@@ -104,13 +84,10 @@ function extractSchemaFromOperation(
   method: string,
   reqPath: string
 ): OpenAPIV3.SchemaObject | null {
-  if (!operation.responses) {
-    throw new Error(`Response not found: ${method} ${reqPath} ${status}`);
-  }
-  const response = operation.responses[String(status)];
+  const response = operation.responses?.[String(status)];
 
   if (response && typeof response === 'object' && 'content' in response) {
-    const schema = response.content?.['application/json']?.schema;
+    const schema = response.content?.[DEFAULT_CONTENT_TYPE]?.schema;
     return (schema as OpenAPIV3.SchemaObject) ?? null;
   }
   throw new Error(`Response not found: ${method} ${reqPath} ${status}`);
@@ -123,7 +100,7 @@ export function getResponseSchema(
   status: number
 ): OpenAPIV3.SchemaObject | null {
   const pathWithoutQueryParams = extractPathnameWithoutQueryParams(p);
-  const matchedPath = matchPath(spec, pathWithoutQueryParams, method);
+  const matchedPath = matchPath(spec, pathWithoutQueryParams);
 
   if (!matchedPath) {
     throw new Error(`Path not found in OpenAPI: ${pathWithoutQueryParams}`);

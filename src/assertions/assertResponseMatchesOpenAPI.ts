@@ -1,6 +1,7 @@
+import { HTTP_STATUS_NO_CONTENT } from '../core/constants.js';
+import { ValidationContext } from '../core/ValidationContext.js';
 import { loadSpec } from '../openapi/loader.js';
 import { getResponseSchema } from '../openapi/router.js';
-import { ValidationContext } from '../core/ValidationContext.js';
 import { validateShape } from '../validators/index.js';
 
 export type OpenAPIValidatorInput = {
@@ -9,6 +10,7 @@ export type OpenAPIValidatorInput = {
   method: string;
   status: number;
   body: unknown;
+  customFormats?: Record<string, (val: string) => boolean> | undefined;
 };
 
 function isResponseBodyEmpty(body: unknown): boolean {
@@ -26,11 +28,12 @@ export async function assertResponseMatchesOpenAPI({
   path: reqPath,
   method,
   status,
-  body
+  body,
+  customFormats
 }: OpenAPIValidatorInput): Promise<void> {
-  if (status === 204) {
+  if (status === HTTP_STATUS_NO_CONTENT) {
     if (!isResponseBodyEmpty(body)) {
-      throw new Error('204 must have empty body');
+      throw new Error(`${HTTP_STATUS_NO_CONTENT} must have empty body`);
     }
     return;
   }
@@ -44,7 +47,7 @@ export async function assertResponseMatchesOpenAPI({
 
   const ctx = new ValidationContext();
   ctx.pushPath('body');
-  validateShape({ value: body, schema, ctx, validateShape });
+  validateShape({ value: body, schema, ctx, validateShape, customFormats });
   ctx.popPath();
 
   if (ctx.hasErrors()) {
