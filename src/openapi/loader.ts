@@ -1,5 +1,5 @@
-import SwaggerParser from '@apidevtools/swagger-parser';
 import path from 'node:path';
+import SwaggerParser from '@apidevtools/swagger-parser';
 import type { OpenAPIV3 } from 'openapi-types';
 
 const specCache = new Map<string, OpenAPIV3.Document>();

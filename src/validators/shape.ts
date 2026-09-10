@@ -1,16 +1,9 @@
-import type { OpenAPIV3 } from 'openapi-types';
-import { ValidationContext } from '../core/ValidationContext.js';
-import { validateBaseType, validateArray, validateObject } from './types.js';
 import { checkPolymorphism } from './polymorphism.js';
-import { registerValidateShape } from './registry.js';
+import { validateArray, validateBaseType, validateObject, type ValidationArgs } from './types.js';
 
 const validators: Record<
   string,
-  (
-    value: unknown,
-    schema: OpenAPIV3.SchemaObject,
-    ctx: ValidationContext
-  ) => void
+  (args: ValidationArgs) => void
 > = {
   string: validateBaseType,
   number: validateBaseType,
@@ -20,11 +13,9 @@ const validators: Record<
   object: validateObject
 };
 
-export function validateShape(
-  value: unknown,
-  schema: OpenAPIV3.SchemaObject,
-  ctx: ValidationContext
-): void {
+export function validateShape(args: ValidationArgs): void {
+  const { value, schema, ctx } = args;
+
   if (schema.writeOnly && value !== undefined) {
     ctx.addError('Field is writeOnly and must not be present in the response');
     return;
@@ -42,17 +33,14 @@ export function validateShape(
     return;
   }
 
-  checkPolymorphism(value, schema, ctx);
+  checkPolymorphism(args);
 
   if (schema.type) {
     const validator = validators[schema.type];
     if (validator) {
-      validator(value, schema, ctx);
+      validator(args);
     } else {
-      validateBaseType(value, schema, ctx);
+      validateBaseType(args);
     }
   }
 }
-
-// Registrar de forma tardía (Late Binding) la implementación para romper dependencias circulares
-registerValidateShape(validateShape);

@@ -1,20 +1,33 @@
+export interface PathNode {
+  readonly segment: string | number;
+  readonly parent: PathNode | null;
+}
+
 export class ValidationContext {
   public readonly errors: string[] = [];
   public readonly visited = new Set<object>();
-  public path: (string | number)[] = [];
+  public currentPath: PathNode | null = null;
 
   pushPath(segment: string | number): void {
-    this.path.push(segment);
+    this.currentPath = { segment, parent: this.currentPath };
   }
 
   popPath(): void {
-    this.path.pop();
+    this.currentPath = this.currentPath?.parent || null;
   }
 
   formatPath(): string {
+    const segments: (string | number)[] = [];
+    let current = this.currentPath;
+    while (current !== null) {
+      segments.push(current.segment);
+      current = current.parent;
+    }
+    segments.reverse();
+
     let result = '';
-    for (let i = 0; i < this.path.length; i++) {
-      const segment = this.path[i];
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
       if (segment === undefined) continue;
       if (typeof segment === 'number') {
         result += `[${segment}]`;
