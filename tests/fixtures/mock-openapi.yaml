@@ -101,6 +101,23 @@ paths:
                     items:
                       type: string
 
+  /test/constraints/arrays-objects:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valArr]
+                properties:
+                  valArr:
+                    type: array
+                    uniqueItems: true
+                    items:
+                      type: object
+
   /test/objects/strict:
     get:
       responses:
@@ -451,6 +468,42 @@ paths:
                     type: string
                     nullable: true
 
+  /test/validation/const:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, code]
+                properties:
+                  status:
+                    type: string
+                    const: success
+                  code:
+                    type: integer
+                    const: 200
+
+  /test/validation/enum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [role, level]
+                properties:
+                  role:
+                    type: string
+                    enum: [admin, user, guest]
+                  level:
+                    type: integer
+                    enum: [1, 2, 3]
+
   /test/dynamic/{id}:
     get:
       responses:
@@ -480,6 +533,48 @@ paths:
                     anyOf:
                       - $ref: '#/components/schemas/SimpleUser'
 
+  /test/polymorphism/discriminator:
+    post:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    $ref: '#/components/schemas/Pet'
+
+  /test/polymorphism/discriminator-anyof:
+    post:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    $ref: '#/components/schemas/Vehicle'
+
+  /test/polymorphism/discriminator-no-mapping:
+    post:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    $ref: '#/components/schemas/Shape'
+
 components:
   schemas:
     SimpleUser:
@@ -488,3 +583,106 @@ components:
       properties:
         name:
           type: string
+
+    Pet:
+      type: object
+      required: [petType]
+      properties:
+        petType:
+          type: string
+      discriminator:
+        propertyName: petType
+        mapping:
+          dog: '#/components/schemas/Dog'
+          puppy: '#/components/schemas/Dog'
+          cat: '#/components/schemas/Cat'
+      oneOf:
+        - $ref: '#/components/schemas/Dog'
+        - $ref: '#/components/schemas/Cat'
+
+    Dog:
+      type: object
+      required: [petType, barkVolume]
+      properties:
+        petType:
+          type: string
+          const: dog
+        barkVolume:
+          type: integer
+
+    Cat:
+      type: object
+      required: [petType, nestsCount]
+      properties:
+        petType:
+          type: string
+          const: cat
+        nestsCount:
+          type: integer
+
+    Vehicle:
+      type: object
+      required: [vehicleType]
+      properties:
+        vehicleType:
+          type: string
+      discriminator:
+        propertyName: vehicleType
+        mapping:
+          car: '#/components/schemas/Car'
+          truck: '#/components/schemas/Truck'
+      anyOf:
+        - $ref: '#/components/schemas/Car'
+        - $ref: '#/components/schemas/Truck'
+
+    Car:
+      type: object
+      required: [vehicleType, doors]
+      properties:
+        vehicleType:
+          type: string
+          enum: [car]
+        doors:
+          type: integer
+
+    Truck:
+      type: object
+      required: [vehicleType, cargoCapacity]
+      properties:
+        vehicleType:
+          type: string
+          enum: [truck]
+        cargoCapacity:
+          type: number
+
+    Shape:
+      type: object
+      required: [shape]
+      properties:
+        shape:
+          type: string
+      discriminator:
+        propertyName: shape
+      oneOf:
+        - $ref: '#/components/schemas/Circle'
+        - $ref: '#/components/schemas/Square'
+
+    Circle:
+      type: object
+      required: [shape, radius]
+      properties:
+        shape:
+          type: string
+          const: Circle
+        radius:
+          type: number
+
+    Square:
+      type: object
+      required: [shape, sideLength]
+      properties:
+        shape:
+          type: string
+          const: Square
+        sideLength:
+          type: number

@@ -3,7 +3,9 @@ import {
   type ValidationArgs,
   validateArray,
   validateBaseType,
-  validateObject
+  validateObject,
+  validateConst,
+  validateEnum
 } from './types.js';
 
 const validators: Record<string, (args: ValidationArgs) => void> = {
@@ -34,6 +36,9 @@ export function validateShape(args: ValidationArgs): void {
     ctx.addError('Field is required but received undefined');
     return;
   }
+
+  validateEnum(args);
+  validateConst(args);
 
   checkPolymorphism(args);
 
