@@ -1,5 +1,9 @@
 import type { OpenAPIV3 } from 'openapi-types';
-import { DEFAULT_CONTENT_TYPE, DUMMY_BASE_URL } from '../core/constants.js';
+import {
+  DEFAULT_CONTENT_TYPE,
+  DUMMY_BASE_URL,
+  MAX_CACHE_SIZE
+} from '../core/constants.js';
 
 const regexCache = new Map<string, RegExp>();
 
@@ -13,6 +17,10 @@ export function convertOpenApiPathToRegExp(openApiPath: string): RegExp {
   const cached = regexCache.get(cacheKey);
   if (cached) {
     return cached;
+  }
+  if (regexCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = regexCache.keys().next().value;
+    regexCache.delete(firstKey as string);
   }
   const escapedPath = escapeRegex(openApiPath);
   const regexPattern = escapedPath.replace(/\\{[^\\}]+\\}/g, '[^/]+');

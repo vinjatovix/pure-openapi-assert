@@ -45,7 +45,7 @@ export async function assertResponseMatchesOpenAPI({
     throw new Error(`No schema found for ${method} ${reqPath} ${status}`);
   }
 
-  const ctx = new ValidationContext();
+  const ctx = new ValidationContext(spec);
   ctx.pushPath('body');
   validateShape({ value: body, schema, ctx, validateShape, customFormats });
   ctx.popPath();

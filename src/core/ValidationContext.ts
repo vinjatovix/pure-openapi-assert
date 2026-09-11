@@ -1,3 +1,6 @@
+import type { OpenAPIV3 } from 'openapi-types';
+import { isPlainObject } from './utils.js';
+
 export interface PathNode {
   readonly segment: string | number;
   readonly parent: PathNode | null;
@@ -5,8 +8,71 @@ export interface PathNode {
 
 export class ValidationContext {
   public readonly errors: string[] = [];
-  public readonly visited = new Set<object>();
+  public readonly visited: Set<object>;
   public currentPath: PathNode | null = null;
+  private readonly activeObjectPolymorphism: WeakMap<
+    object,
+    Set<OpenAPIV3.SchemaObject>
+  >;
+  private readonly activePrimitivePolymorphism: Set<OpenAPIV3.SchemaObject>;
+
+  constructor(
+    public readonly spec?: OpenAPIV3.Document,
+    visited?: Set<object>,
+    activeObjectPolymorphism?: WeakMap<object, Set<OpenAPIV3.SchemaObject>>,
+    activePrimitivePolymorphism?: Set<OpenAPIV3.SchemaObject>
+  ) {
+    this.visited = visited || new Set<object>();
+    this.activeObjectPolymorphism =
+      activeObjectPolymorphism ||
+      new WeakMap<object, Set<OpenAPIV3.SchemaObject>>();
+    this.activePrimitivePolymorphism =
+      activePrimitivePolymorphism || new Set<OpenAPIV3.SchemaObject>();
+  }
+
+  createChildContext(): ValidationContext {
+    const child = new ValidationContext(
+      this.spec,
+      new Set<object>(this.visited),
+      this.activeObjectPolymorphism,
+      new Set<OpenAPIV3.SchemaObject>(this.activePrimitivePolymorphism)
+    );
+    child.currentPath = this.currentPath;
+    return child;
+  }
+
+  public trackPolymorphism(
+    value: unknown,
+    schema: OpenAPIV3.SchemaObject,
+    fn: () => void
+  ): void {
+    if (isPlainObject(value) || Array.isArray(value)) {
+      let active = this.activeObjectPolymorphism.get(value);
+      if (!active) {
+        active = new Set<OpenAPIV3.SchemaObject>();
+        this.activeObjectPolymorphism.set(value, active);
+      }
+      if (active.has(schema)) {
+        return;
+      }
+      active.add(schema);
+      try {
+        fn();
+      } finally {
+        active.delete(schema);
+      }
+    } else {
+      if (this.activePrimitivePolymorphism.has(schema)) {
+        return;
+      }
+      this.activePrimitivePolymorphism.add(schema);
+      try {
+        fn();
+      } finally {
+        this.activePrimitivePolymorphism.delete(schema);
+      }
+    }
+  }
 
   pushPath(segment: string | number): void {
     this.currentPath = { segment, parent: this.currentPath };

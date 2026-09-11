@@ -1,21 +1,18 @@
 import path from 'node:path';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import type { OpenAPIV3 } from 'openapi-types';
+import { isPlainObject } from '../core/utils.js';
 
 const specCache = new Map<string, OpenAPIV3.Document>();
 
-function isNonNullObject(val: unknown): val is Record<string, unknown> {
-  return typeof val === 'object' && val !== null && !Array.isArray(val);
-}
-
 function isValidOpenAPIV3Document(spec: unknown): spec is OpenAPIV3.Document {
-  if (!isNonNullObject(spec)) {
+  if (!isPlainObject(spec)) {
     return false;
   }
 
   const hasOpenapi = typeof spec.openapi === 'string';
-  const hasInfo = isNonNullObject(spec.info);
-  const hasPaths = isNonNullObject(spec.paths);
+  const hasInfo = isPlainObject(spec.info);
+  const hasPaths = isPlainObject(spec.paths);
 
   return hasOpenapi && hasInfo && hasPaths;
 }

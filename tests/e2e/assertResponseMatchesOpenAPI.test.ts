@@ -473,6 +473,82 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
     });
 
+    describe('Array of Objects Constraints (/test/constraints/arrays-objects)', () => {
+      it('should pass with unique object structures', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/constraints/arrays-objects',
+            method: 'GET',
+            status: 200,
+            body: {
+              valArr: [
+                { id: 1, name: 'Alice' },
+                { id: 2, name: 'Bob' }
+              ]
+            }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should reject non-unique object structures', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/constraints/arrays-objects',
+            method: 'GET',
+            status: 200,
+            body: {
+              valArr: [
+                { id: 1, name: 'Alice' },
+                { id: 1, name: 'Alice' }
+              ]
+            }
+          })
+        ).rejects.toThrow('Array elements must be unique');
+      });
+
+      it('should safely validate uniqueness with circular objects and reject structurally identical ones without infinite recursion', async () => {
+        const cyclicObj1 = { name: 'cyclic', self: {} as unknown };
+        cyclicObj1.self = cyclicObj1;
+
+        const cyclicObj2 = { name: 'cyclic', self: {} as unknown };
+        cyclicObj2.self = cyclicObj2;
+
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/constraints/arrays-objects',
+            method: 'GET',
+            status: 200,
+            body: {
+              valArr: [cyclicObj1, cyclicObj2]
+            }
+          })
+        ).rejects.toThrow('Array elements must be unique');
+      });
+
+      it('should pass when circular objects are structurally distinct', async () => {
+        const cyclicObj1 = { name: 'cyclic-1', self: {} as unknown };
+        cyclicObj1.self = cyclicObj1;
+
+        const cyclicObj2 = { name: 'cyclic-2', self: {} as unknown };
+        cyclicObj2.self = cyclicObj2;
+
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/constraints/arrays-objects',
+            method: 'GET',
+            status: 200,
+            body: {
+              valArr: [cyclicObj1, cyclicObj2]
+            }
+          })
+        ).resolves.not.toThrow();
+      });
+    });
+
     describe('Objects & Additional Properties (/test/objects/*)', () => {
       it('should pass when allowed additional fields match schema', async () => {
         await expect(
@@ -650,6 +726,144 @@ describe('assertResponseMatchesOpenAPI', () => {
             }
           })
         ).rejects.toThrow('[body.poly.extraField] Missing required field');
+      });
+    });
+
+    describe('Polymorphism oneOf with Discriminator Mapping (/test/polymorphism/discriminator)', () => {
+      it('should pass if matching the exact dog schema via discriminator', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator',
+            method: 'POST',
+            status: 200,
+            body: { poly: { petType: 'dog', barkVolume: 5 } }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should pass if matching the exact cat schema via discriminator', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator',
+            method: 'POST',
+            status: 200,
+            body: { poly: { petType: 'cat', nestsCount: 3 } }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should report the specific error of the selected branch (Dog) if validation fails', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator',
+            method: 'POST',
+            status: 200,
+            body: { poly: { petType: 'dog', barkVolume: 'loud' } } // barkVolume should be integer
+          })
+        ).rejects.toThrow(
+          '[body.poly.barkVolume] Expected integer, received string'
+        );
+      });
+
+      it('should report the specific error of the selected branch (Cat) if validation fails', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator',
+            method: 'POST',
+            status: 200,
+            body: { poly: { petType: 'cat', nestsCount: 'many' } } // nestsCount should be integer
+          })
+        ).rejects.toThrow(
+          '[body.poly.nestsCount] Expected integer, received string'
+        );
+      });
+
+      it('should reject with a clear error if the discriminator property value is invalid/unmapped', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator',
+            method: 'POST',
+            status: 200,
+            body: { poly: { petType: 'bird', nestsCount: 2 } }
+          })
+        ).rejects.toThrow(
+          "Discriminator 'petType' value 'bird' does not match any schema in 'oneOf'"
+        );
+      });
+
+      it('should fail if the resolved branch constraints are violated (polymorphic const check)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator',
+            method: 'POST',
+            status: 200,
+            body: { poly: { petType: 'puppy', barkVolume: 5 } }
+          })
+        ).rejects.toThrow(
+          '[body.poly.petType] Expected exactly "dog", received "puppy"'
+        );
+      });
+    });
+
+    describe('Polymorphism anyOf with Discriminator Mapping (/test/polymorphism/discriminator-anyof)', () => {
+      it('should pass if matching the exact car schema via discriminator', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator-anyof',
+            method: 'POST',
+            status: 200,
+            body: { poly: { vehicleType: 'car', doors: 4 } }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should report the specific error of the selected branch (Truck) if validation fails', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator-anyof',
+            method: 'POST',
+            status: 200,
+            body: { poly: { vehicleType: 'truck', cargoCapacity: 'heavy' } } // cargoCapacity should be number
+          })
+        ).rejects.toThrow(
+          '[body.poly.cargoCapacity] Expected number, received string'
+        );
+      });
+    });
+
+    describe('Polymorphism oneOf with Implicit Discriminator Name (/test/polymorphism/discriminator-no-mapping)', () => {
+      it('should pass if matching the implicit Circle schema', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator-no-mapping',
+            method: 'POST',
+            status: 200,
+            body: { poly: { shape: 'Circle', radius: 4.5 } }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should report specific error of the implicit Square schema', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/polymorphism/discriminator-no-mapping',
+            method: 'POST',
+            status: 200,
+            body: { poly: { shape: 'Square', sideLength: 'ten' } } // sideLength should be number
+          })
+        ).rejects.toThrow(
+          '[body.poly.sideLength] Expected number, received string'
+        );
       });
     });
 
@@ -1019,6 +1233,80 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
+      it('should validate const constraints successfully', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/validation/const',
+            method: 'GET',
+            status: 200,
+            body: { status: 'success', code: 200 }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should fail if const constraint is violated (string)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/validation/const',
+            method: 'GET',
+            status: 200,
+            body: { status: 'failed', code: 200 }
+          })
+        ).rejects.toThrow('Expected exactly "success", received "failed"');
+      });
+
+      it('should fail if const constraint is violated (integer)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/validation/const',
+            method: 'GET',
+            status: 200,
+            body: { status: 'success', code: 500 }
+          })
+        ).rejects.toThrow('Expected exactly 200, received 500');
+      });
+
+      it('should validate enum constraints successfully', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/validation/enum',
+            method: 'GET',
+            status: 200,
+            body: { role: 'admin', level: 1 }
+          })
+        ).resolves.not.toThrow();
+      });
+
+      it('should fail if enum constraint is violated (string)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/validation/enum',
+            method: 'GET',
+            status: 200,
+            body: { role: 'invalid-role', level: 1 }
+          })
+        ).rejects.toThrow(
+          'Expected one of [admin, user, guest], received "invalid-role"'
+        );
+      });
+
+      it('should fail if enum constraint is violated (integer)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/validation/enum',
+            method: 'GET',
+            status: 200,
+            body: { role: 'admin', level: 5 }
+          })
+        ).rejects.toThrow('Expected one of [1, 2, 3], received 5');
+      });
+
       it('should validate int32 format constraint without a specified type in schema', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
@@ -1029,6 +1317,18 @@ describe('assertResponseMatchesOpenAPI', () => {
             body: { field: 'not-a-number-string' }
           })
         ).rejects.toThrow('Expected 32-bit integer, received string');
+      });
+
+      it('should validate int32 format constraint without a specified type in schema (boolean)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/formats/no-type/int32',
+            method: 'GET',
+            status: 200,
+            body: { field: true }
+          })
+        ).rejects.toThrow('Expected 32-bit integer, received boolean');
       });
 
       it('should validate int64 format constraint without a specified type in schema (string)', async () => {

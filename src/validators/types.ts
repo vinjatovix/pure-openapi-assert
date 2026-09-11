@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import type { OpenAPIV3 } from 'openapi-types';
 import {
   FLOAT32_MAX,
@@ -8,6 +9,8 @@ import {
   INTEGER_STRING_REGEX
 } from '../core/constants.js';
 import { ValidationContext } from '../core/ValidationContext.js';
+import { isPlainObject, isPrimitive, isSchemaObject } from '../core/utils.js';
+import { CycleTracker, CYCLE_DETECTED } from '../core/CycleTracker.js';
 import { formatRegistry, getCachedRegex } from './format.js';
 
 export interface ValidationArgs<T = unknown> {
@@ -25,26 +28,45 @@ export interface ValidationArgs<T = unknown> {
   customFormats?: Record<string, (val: string) => boolean> | undefined;
 }
 
-export function isSchemaObject(
-  schema: unknown
-): schema is OpenAPIV3.SchemaObject {
-  return typeof schema === 'object' && schema !== null && !('$ref' in schema);
-}
-
-export const typeValidators: Record<string, (value: unknown) => boolean> = {
+export const typeValidators: Record<
+  'string' | 'number' | 'integer' | 'boolean',
+  (value: unknown) => boolean
+> = {
   string: (val) => typeof val === 'string',
   number: (val) => typeof val === 'number' && Number.isFinite(val),
   integer: (val) => Number.isInteger(val),
   boolean: (val) => typeof val === 'boolean'
 };
 
+const enumSetsCache = new WeakMap<OpenAPIV3.SchemaObject, Set<unknown>>();
+
 export function validateEnum(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   if (!schema.enum) return;
 
-  if (!schema.enum.includes(value)) {
+  let enumSet = enumSetsCache.get(schema);
+  if (!enumSet) {
+    enumSet = new Set(schema.enum);
+    enumSetsCache.set(schema, enumSet);
+  }
+
+  if (!enumSet.has(value)) {
     ctx.addError(
       `Expected one of [${schema.enum.join(', ')}], received ${JSON.stringify(value)}`
+    );
+  }
+}
+
+export function validateConst(args: ValidationArgs): void {
+  const { value, schema, ctx } = args;
+  const withConst = schema as OpenAPIV3.SchemaObject & { const?: unknown };
+  if (withConst.const === undefined) return;
+
+  if (value === withConst.const) return;
+
+  if (!isDeepStrictEqual(value, withConst.const)) {
+    ctx.addError(
+      `Expected exactly ${JSON.stringify(withConst.const)}, received ${JSON.stringify(value)}`
     );
   }
 }
@@ -69,7 +91,10 @@ function getReceivedType(value: unknown): string {
 export function validateTypeCheck(args: ValidationArgs): boolean {
   const { value, schema, ctx } = args;
   const expectedType = schema.type;
-  const isTypeValid = expectedType ? typeValidators[expectedType] : undefined;
+  const isTypeValid =
+    expectedType && Object.hasOwn(typeValidators, expectedType)
+      ? typeValidators[expectedType as keyof typeof typeValidators]
+      : undefined;
 
   if (
     expectedType &&
@@ -243,6 +268,36 @@ export function validateMaxConstraint(args: ValidationArgs): void {
   }
 }
 
+function resolveBigIntMultiple(
+  multipleVal: number | string | boolean | undefined
+): { bigintMultiple: bigint; multiplier: bigint } | undefined {
+  if (multipleVal === undefined) return undefined;
+  try {
+    const bigintMultiple = BigInt(multipleVal);
+    if (bigintMultiple <= 0n) return undefined;
+    return { bigintMultiple, multiplier: 1n };
+  } catch {
+    const multipleNum = Number(multipleVal);
+    if (
+      isNaN(multipleNum) ||
+      !Number.isFinite(multipleNum) ||
+      multipleNum <= 0
+    ) {
+      return undefined;
+    }
+
+    const decimals = Math.max(0, getDecimalPlaces(multipleNum));
+    const multiplier = 10n ** BigInt(decimals);
+    let bigintMultiple: bigint;
+    try {
+      bigintMultiple = BigInt(Math.round(multipleNum * Math.pow(10, decimals)));
+    } catch {
+      bigintMultiple = 0n;
+    }
+    return { bigintMultiple, multiplier };
+  }
+}
+
 export function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   const valueStr = value as string;
@@ -251,88 +306,65 @@ export function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
     return;
   }
 
-  const multipleVal = schema.multipleOf;
-  if (multipleVal === undefined) {
+  const resolved = resolveBigIntMultiple(schema.multipleOf);
+  if (!resolved || resolved.bigintMultiple === 0n) {
     return;
   }
 
-  const multipleNum = Number(multipleVal);
-  if (isNaN(multipleNum) || !Number.isFinite(multipleNum) || multipleNum <= 0) {
-    return;
-  }
+  const bigintVal = BigInt(valueStr) * resolved.multiplier;
 
-  let bigintVal = BigInt(valueStr);
-  let bigintMultiple: bigint;
-
-  try {
-    bigintMultiple = BigInt(multipleVal);
-  } catch {
-    const decimals = Math.max(0, getDecimalPlaces(multipleNum));
-    const multiplier = 10n ** BigInt(decimals);
-
-    bigintVal = bigintVal * multiplier;
-    // Note: For extremely small multipleOf values (e.g. 15+ decimals like 0.0000000000000001),
-    // Math.pow(10, decimals) and the subsequent multiplication might hit IEEE 754 precision limits.
-    // In practice for OpenAPI schemas on 64-bit integers, this is rarely an issue.
-    try {
-      bigintMultiple = BigInt(Math.round(multipleNum * Math.pow(10, decimals)));
-    } catch {
-      bigintMultiple = 0n;
-    }
-  }
-
-  if (bigintMultiple === 0n) {
-    return;
-  }
-
-  if (bigintVal % bigintMultiple !== 0n) {
+  if (bigintVal % resolved.bigintMultiple !== 0n) {
     ctx.addError(
       `Value ${String(value)} is not a multiple of ${schema.multipleOf}`
     );
   }
 }
 
-function isBigIntSupportedBound(
-  bound: unknown
-): bound is number | string | bigint {
-  return (
-    typeof bound === 'number' ||
-    typeof bound === 'string' ||
-    typeof bound === 'bigint'
-  );
+function parseBigIntFromNumber(
+  num: number,
+  roundFn: (n: number) => number
+): { value: bigint; isFractional: boolean } | undefined {
+  if (Number.isNaN(num)) {
+    return undefined;
+  }
+  if (!Number.isFinite(num)) {
+    throw new TypeError('Invalid schema: BigInt bound cannot be Infinity');
+  }
+  const isFractional = !Number.isInteger(num);
+  const value = isFractional ? BigInt(roundFn(num)) : BigInt(num);
+  return { value, isFractional };
 }
 
 function parseBigIntBound(
   bound: unknown,
   roundFn: (n: number) => number
 ): { value: bigint; isFractional: boolean } | undefined {
-  if (bound === undefined || bound === null) return undefined;
-
-  if (!isBigIntSupportedBound(bound)) {
+  if (bound === undefined || bound === null) {
     return undefined;
   }
 
-  if (typeof bound === 'string' && bound.trim() === '') {
-    return undefined;
+  if (typeof bound === 'bigint') {
+    return { value: bound, isFractional: false };
   }
 
-  const num = Number(bound);
-
-  if (isNaN(num)) {
-    return undefined;
+  if (typeof bound === 'number') {
+    return parseBigIntFromNumber(bound, roundFn);
   }
 
-  if (!Number.isFinite(num)) {
-    throw new TypeError('Invalid schema: BigInt bound cannot be Infinity');
+  if (typeof bound === 'string') {
+    const trimmed = bound.trim();
+    if (trimmed === '') {
+      return undefined;
+    }
+
+    try {
+      return { value: BigInt(trimmed), isFractional: false };
+    } catch {
+      return parseBigIntFromNumber(Number(trimmed), roundFn);
+    }
   }
 
-  try {
-    return { value: BigInt(bound), isFractional: false };
-  } catch {
-    const isFractional = !Number.isInteger(num);
-    const value = isFractional ? BigInt(roundFn(num)) : BigInt(num);
-    return { value, isFractional };
-  }
+  return undefined;
 }
 
 function getDecimalPlaces(num: number): number {
@@ -356,6 +388,26 @@ function getDecimalPlaces(num: number): number {
   return decimals;
 }
 
+function isMultipleOfDecimal(valNum: number, multipleOfNum: number): boolean {
+  const decimals = Math.max(
+    getDecimalPlaces(multipleOfNum),
+    getDecimalPlaces(valNum)
+  );
+  const multiplier = Math.pow(10, decimals);
+  if (!Number.isFinite(multiplier) || multiplier === 0) {
+    return true;
+  }
+
+  const valInt = Math.round(valNum * multiplier);
+  const multipleInt = Math.round(multipleOfNum * multiplier);
+
+  if (multipleInt === 0 || !Number.isFinite(multipleInt)) {
+    return true;
+  }
+
+  return valInt % multipleInt === 0;
+}
+
 export function validateMultipleOfNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   const multipleOfRaw = schema.multipleOf;
@@ -372,23 +424,12 @@ export function validateMultipleOfNumberConstraint(args: ValidationArgs): void {
   }
   const valNum = value as number;
 
-  const decimals = Math.max(
-    getDecimalPlaces(multipleOfNum),
-    getDecimalPlaces(valNum)
-  );
-  const multiplier = Math.pow(10, decimals);
-  if (!Number.isFinite(multiplier) || multiplier === 0) {
-    return;
-  }
+  const isMultiple =
+    Number.isInteger(valNum) && Number.isInteger(multipleOfNum)
+      ? valNum % multipleOfNum === 0
+      : isMultipleOfDecimal(valNum, multipleOfNum);
 
-  const valInt = Math.round(valNum * multiplier);
-  const multipleInt = Math.round(multipleOfNum * multiplier);
-
-  if (multipleInt === 0 || !Number.isFinite(multipleInt)) {
-    return;
-  }
-
-  if (valInt % multipleInt !== 0) {
+  if (!isMultiple) {
     ctx.addError(
       `Value ${String(value)} is not a multiple of ${schema.multipleOf}`
     );
@@ -507,8 +548,6 @@ export function validateNumberConstraints(args: ValidationArgs): void {
 }
 
 export function validateBaseType(args: ValidationArgs): void {
-  validateEnum(args);
-
   if (!validateTypeCheck(args)) {
     return;
   }
@@ -517,16 +556,23 @@ export function validateBaseType(args: ValidationArgs): void {
 
   if (typeof value === 'string') {
     validateStringConstraints(args as ValidationArgs<string>);
-    if (schema.type === 'integer' && schema.format === 'int64') {
+    if (schema.format === 'int64') {
       validateNumberConstraints(args);
     } else if (
       schema.format &&
-      ['int32', 'int64', 'float', 'double'].includes(schema.format)
+      ['int32', 'float', 'double'].includes(schema.format)
     ) {
       validateNumberFormatConstraint(args);
     }
   } else if (typeof value === 'number') {
     validateNumberConstraints(args);
+  } else {
+    if (
+      schema.format &&
+      ['int32', 'int64', 'float', 'double'].includes(schema.format)
+    ) {
+      validateNumberFormatConstraint(args);
+    }
   }
 }
 
@@ -544,13 +590,72 @@ export function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
   }
 }
 
+function canonicalStringify(
+  value: unknown,
+  tracker: CycleTracker
+): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return 'null';
+  }
+  if (typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+
+  const result = tracker.track(value, () => {
+    if (Array.isArray(value)) {
+      const parts: string[] = [];
+      for (const item of value) {
+        const stringified = canonicalStringify(item, tracker);
+        parts.push(stringified === undefined ? 'null' : stringified);
+      }
+      return `[${parts.join(',')}]`;
+    }
+    const keys = Object.keys(value).sort();
+    const parts: string[] = [];
+    for (const key of keys) {
+      const val = (value as Record<string, unknown>)[key];
+      const stringified = canonicalStringify(val, tracker);
+      if (stringified !== undefined) {
+        parts.push(`${JSON.stringify(key)}:${stringified}`);
+      }
+    }
+    return `{${parts.join(',')}}`;
+  });
+
+  if (result === CYCLE_DETECTED) {
+    return '__CYCLE__';
+  }
+  return result;
+}
+
 export function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx } = args;
-  if (!schema.uniqueItems) return;
+  if (!schema.uniqueItems) {
+    return;
+  }
 
-  const uniqueValues = new Set(value.map((item) => JSON.stringify(item)));
-  if (uniqueValues.size !== value.length) {
-    ctx.addError('Array elements must be unique');
+  const seenPrimitives = new Set<unknown>();
+  const seenObjects = new Set<string | undefined>();
+  const tracker = new CycleTracker();
+
+  for (const item of value) {
+    if (isPrimitive(item) || item === null) {
+      if (seenPrimitives.has(item)) {
+        ctx.addError('Array elements must be unique');
+        return;
+      }
+      seenPrimitives.add(item);
+    } else {
+      const serialized = canonicalStringify(item, tracker);
+      if (seenObjects.has(serialized)) {
+        ctx.addError('Array elements must be unique');
+        return;
+      }
+      seenObjects.add(serialized);
+    }
   }
 }
 
@@ -589,16 +694,14 @@ export function validateArray(args: ValidationArgs): void {
   }
   ctx.visited.add(value);
 
-  const arrayArgs = args as ValidationArgs<unknown[]>;
-  validateArrayBounds(arrayArgs);
-  validateArrayUnique(arrayArgs);
-  validateArrayItems(arrayArgs);
-
-  ctx.visited.delete(value);
-}
-
-function isNotValidObject(value: unknown): boolean {
-  return typeof value !== 'object' || value === null || Array.isArray(value);
+  try {
+    const arrayArgs = args as ValidationArgs<unknown[]>;
+    validateArrayBounds(arrayArgs);
+    validateArrayUnique(arrayArgs);
+    validateArrayItems(arrayArgs);
+  } finally {
+    ctx.visited.delete(value);
+  }
 }
 
 export function validateObjectBounds(args: ValidationArgs): void {
@@ -632,6 +735,15 @@ export function validateRequiredFields(
   }
 }
 
+const schemaAllowedKeysCache = new WeakMap<
+  OpenAPIV3.SchemaObject,
+  Set<string>
+>();
+const schemaPropertiesEntriesCache = new WeakMap<
+  OpenAPIV3.SchemaObject,
+  [string, OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject][]
+>();
+
 export function validateAdditionalProperties(
   args: ValidationArgs<Record<string, unknown>>
 ): void {
@@ -640,7 +752,13 @@ export function validateAdditionalProperties(
   if (additionalSchema === undefined || additionalSchema === true) return;
 
   const properties = schema.properties ?? {};
-  const allowedKeys = new Set(Object.keys(properties));
+
+  let allowedKeys = schemaAllowedKeysCache.get(schema);
+  if (!allowedKeys) {
+    allowedKeys = new Set(Object.keys(properties));
+    schemaAllowedKeysCache.set(schema, allowedKeys);
+  }
+
   const isSchema = isSchemaObject(additionalSchema);
   const activeKeys = keys ?? Object.keys(obj);
 
@@ -673,7 +791,14 @@ export function validateDeclaredProperties(
 ): void {
   const { value: obj, schema, ctx, validateShape, customFormats } = args;
   const properties = schema.properties ?? {};
-  for (const [key, propSchema] of Object.entries(properties)) {
+
+  let entries = schemaPropertiesEntriesCache.get(schema);
+  if (!entries) {
+    entries = Object.entries(properties);
+    schemaPropertiesEntriesCache.set(schema, entries);
+  }
+
+  for (const [key, propSchema] of entries) {
     const propValue = obj[key];
     if (propValue === undefined || !isSchemaObject(propSchema)) continue;
 
@@ -691,38 +816,40 @@ export function validateDeclaredProperties(
 
 export function validateObject(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  if (isNotValidObject(value)) {
+  if (!isPlainObject(value)) {
     ctx.addError(
       `Expected object, received ${value === null ? 'null' : typeof value}`
     );
     return;
   }
 
-  const obj = value as Record<string, unknown>;
+  const obj = value;
 
   if (ctx.visited.has(obj)) {
     return;
   }
   ctx.visited.add(obj);
 
-  const keys = Object.keys(obj);
-  const objectArgs: ValidationArgs<Record<string, unknown>> = {
-    value: obj,
-    schema,
-    ctx,
-    keys,
-    validateShape: args.validateShape,
-    customFormats: args.customFormats
-  };
+  try {
+    const keys = Object.keys(obj);
+    const objectArgs: ValidationArgs<Record<string, unknown>> = {
+      value: obj,
+      schema,
+      ctx,
+      keys,
+      validateShape: args.validateShape,
+      customFormats: args.customFormats
+    };
 
-  validateObjectBounds(objectArgs);
+    validateObjectBounds(objectArgs);
 
-  if (schema.required) {
-    validateRequiredFields(objectArgs);
+    if (schema.required) {
+      validateRequiredFields(objectArgs);
+    }
+
+    validateAdditionalProperties(objectArgs);
+    validateDeclaredProperties(objectArgs);
+  } finally {
+    ctx.visited.delete(obj);
   }
-
-  validateAdditionalProperties(objectArgs);
-  validateDeclaredProperties(objectArgs);
-
-  ctx.visited.delete(obj);
 }

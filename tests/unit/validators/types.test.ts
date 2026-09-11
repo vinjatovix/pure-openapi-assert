@@ -4,6 +4,9 @@ import { validateShape } from '../../../src/validators/shape.js';
 import {
   validateObject,
   validateArray,
+  validateArrayUnique,
+  validateEnum,
+  validateConst,
   validateArrayItems,
   validateTypeCheck,
   validateInt64,
@@ -790,6 +793,16 @@ describe('Validators types.ts (Unit)', () => {
         validateShape: vi.fn()
       });
       expect(ctx3.hasErrors()).toBe(false);
+
+      // negative odd value (should still be ignored as non-positive constraint)
+      const ctx4 = new ValidationContext();
+      validateMultipleOfBigIntConstraint({
+        value: '11',
+        schema: { type: 'string', format: 'int64', multipleOf: -2 },
+        ctx: ctx4,
+        validateShape: vi.fn()
+      });
+      expect(ctx4.hasErrors()).toBe(false);
     });
 
     it('should return undefined in parseBigIntBound if bound is null, empty string, or unsupported type', () => {
@@ -820,6 +833,21 @@ describe('Validators types.ts (Unit)', () => {
         validateShape: vi.fn()
       });
       expect(ctx2.hasErrors()).toBe(false);
+    });
+
+    it('should support schema bound defined directly as bigint', () => {
+      const ctx = new ValidationContext();
+      validateMinBigIntConstraint({
+        value: '9',
+        schema: {
+          type: 'string',
+          format: 'int64',
+          minimum: 10n as unknown as number
+        },
+        ctx,
+        validateShape: vi.fn()
+      });
+      expect(ctx.hasErrors()).toBe(true);
     });
 
     it('should parse non-empty string bounds successfully in parseBigIntBound', () => {
@@ -1106,7 +1134,9 @@ describe('Validators types.ts (Unit)', () => {
       });
 
       expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain("Key 'extraProp' is not allowed by OpenAPI schema");
+      expect(ctx.errors[0]).toContain(
+        "Key 'extraProp' is not allowed by OpenAPI schema"
+      );
     });
 
     it('should bypass shape validation in validateAdditionalProperties when additionalProperties is a reference object', () => {
@@ -1122,6 +1152,166 @@ describe('Validators types.ts (Unit)', () => {
       });
 
       expect(ctx.hasErrors()).toBe(false);
+    });
+  });
+
+  describe('Optimizations and fast paths', () => {
+    it('validateArrayUnique should correctly validate uniqueness for primitives and objects', () => {
+      const ctx = new ValidationContext();
+      const value = [1, 2, 3, 2];
+      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+
+      validateArrayUnique({
+        value,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Array elements must be unique');
+    });
+
+    it('validateArrayUnique should handle object uniqueness correctly', () => {
+      const ctx = new ValidationContext();
+      const value = [{ a: 1 }, { b: 2 }, { a: 1 }];
+      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+
+      validateArrayUnique({
+        value,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Array elements must be unique');
+    });
+
+    it('validateArrayUnique should recognize object uniqueness even with different key order', () => {
+      const ctx = new ValidationContext();
+      const value = [
+        { a: 1, b: 2 },
+        { b: 2, a: 1 }
+      ];
+      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+
+      validateArrayUnique({
+        value,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Array elements must be unique');
+    });
+
+    it('validateArrayUnique should correctly handle null, undefined, and nested arrays in objects', () => {
+      const ctx = new ValidationContext();
+      const value = [
+        { a: null, b: undefined, c: [1, undefined, 2] },
+        { c: [1, undefined, 2], a: null }
+      ];
+      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+
+      validateArrayUnique({
+        value,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Array elements must be unique');
+    });
+
+    it('validateArrayUnique should correctly handle circular references inside objects and prevent RangeErrors', () => {
+      const ctx = new ValidationContext();
+
+      const cyclicObj1 = { name: 'cyclic', self: {} as unknown };
+      cyclicObj1.self = cyclicObj1;
+
+      const cyclicObj2 = { name: 'cyclic', self: {} as unknown };
+      cyclicObj2.self = cyclicObj2;
+
+      const value = [cyclicObj1, cyclicObj2];
+      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+
+      validateArrayUnique({
+        value,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Array elements must be unique');
+    });
+
+    it('validateArrayUnique should not confuse a string value "[Circular]" with an actual circular reference (no collision)', () => {
+      const ctx = new ValidationContext();
+
+      const cyclicObj = { self: {} as unknown };
+      cyclicObj.self = cyclicObj;
+
+      const literalObj = { self: '[Circular]' };
+
+      const value = [cyclicObj, literalObj];
+      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+
+      validateArrayUnique({
+        value,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(false);
+    });
+
+    it('validateEnum should cache and validate correctly', () => {
+      const ctx = new ValidationContext();
+      const schema = { type: 'string' as const, enum: ['admin', 'user'] };
+
+      validateEnum({
+        value: 'guest',
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('Expected one of [admin, user]');
+    });
+
+    it('validateConst should use strict identity checking', () => {
+      const ctx = new ValidationContext();
+      const schema = { type: 'number' as const, const: 42 };
+
+      validateConst({
+        value: 42,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(false);
+    });
+
+    it('validateMultipleOfNumberConstraint should fast path integers', () => {
+      const ctx = new ValidationContext();
+      const schema = { type: 'number' as const, multipleOf: 5 };
+
+      validateMultipleOfNumberConstraint({
+        value: 12,
+        schema,
+        ctx,
+        validateShape: vi.fn()
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]).toContain('is not a multiple of 5');
     });
   });
 });
