@@ -6,7 +6,7 @@ import {
   validateObject,
   validateConst,
   validateEnum
-} from './types.js';
+} from './type-validators.js';
 
 const validators: Record<string, (args: ValidationArgs) => void> = {
   string: validateBaseType,

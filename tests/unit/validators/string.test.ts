@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'vitest';
 import { validateShape } from '../../../src/validators/shape.js';
-import { validateBaseType } from '../../../src/validators/types.js';
+import { validateBaseType } from '../../../src/validators/type-validators.js';
 
 import {
   assertValid,

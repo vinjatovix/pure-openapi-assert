@@ -5,7 +5,7 @@ import {
   validateEnum,
   validateConst,
   validateBaseType
-} from '../../../src/validators/types.js';
+} from '../../../src/validators/type-validators.js';
 
 import {
   assertValid,

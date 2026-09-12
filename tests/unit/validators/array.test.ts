@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 import { validateShape } from '../../../src/validators/shape.js';
-import { validateArray } from '../../../src/validators/types.js';
+import { validateArray } from '../../../src/validators/type-validators.js';
 
 import {
   assertValid,
