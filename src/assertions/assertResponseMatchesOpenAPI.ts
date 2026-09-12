@@ -51,8 +51,11 @@ export async function assertResponseMatchesOpenAPI({
   ctx.popPath();
 
   if (ctx.hasErrors()) {
+    const formattedErrors = ctx.errors.map(
+      (err) => `[${err.path}] ${err.message}`
+    );
     throw new Error(
-      `OpenAPI contract violation for ${method} ${reqPath} ${status}.\nValidation errors:\n- ${ctx.errors.join('\n- ')}`
+      `OpenAPI contract violation for ${method} ${reqPath} ${status}.\nValidation errors:\n- ${formattedErrors.join('\n- ')}`
     );
   }
 }

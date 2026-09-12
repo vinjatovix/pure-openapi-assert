@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ValidationContext } from '../../../src/core/ValidationContext.js';
+import { ValidationContext, type ValidationError } from '../../../src/index.js';
 
 describe('ValidationContext (Unit)', () => {
   it('should initialize with empty errors and visited set', () => {
@@ -65,7 +65,18 @@ describe('ValidationContext (Unit)', () => {
     ctx.pushPath('id');
     ctx.addError('is required');
 
-    expect(ctx.errors).toEqual(['[body.id] is required']);
+    expect(ctx.errors).toEqual([{ path: 'body.id', message: 'is required' }]);
     expect(ctx.hasErrors()).toBe(true);
+  });
+
+  it('should export and allow using the ValidationError type', () => {
+    const error: ValidationError = {
+      path: 'body.id',
+      message: 'is required',
+      branches: [[{ path: 'body.id', message: 'failed branch 1' }]]
+    };
+    expect(error.path).toBe('body.id');
+    expect(error.message).toBe('is required');
+    expect(error.branches?.[0]?.[0]?.message).toBe('failed branch 1');
   });
 });

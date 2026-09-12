@@ -10,6 +10,19 @@ const create = (
     Object.assign(configure(new SchemaBuilder()).build(), overrides);
 };
 
+const createPolymorphic = (method: 'oneOf' | 'anyOf' | 'allOf') => {
+  return (
+    schemas: Array<
+      OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | SchemaBuilder
+    >,
+    overrides?: Partial<OpenAPIV3.SchemaObject>
+  ): OpenAPIV3.SchemaObject => {
+    const builder = new SchemaBuilder();
+    builder[method](...schemas);
+    return Object.assign(builder.build(), overrides);
+  };
+};
+
 export const schemaMother = {
   empty: create(),
   string: create((b) => b.type('string')),
@@ -19,5 +32,8 @@ export const schemaMother = {
   array: create((b) => b.type('array')),
   int64: create((b) => b.format('int64')),
   float: create((b) => b.format('float')),
-  double: create((b) => b.format('double'))
+  double: create((b) => b.format('double')),
+  oneOf: createPolymorphic('oneOf'),
+  anyOf: createPolymorphic('anyOf'),
+  allOf: createPolymorphic('allOf')
 };

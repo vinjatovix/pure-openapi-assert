@@ -4,13 +4,14 @@ import type { OpenAPIV3 } from 'openapi-types';
 import { checkPolymorphism } from '../../../src/validators/polymorphism.js';
 import { validateShape } from '../../../src/validators/shape.js';
 
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
-import { ValidationContextBuilder } from '../../helpers/ValidationContextBuilder.js';
-import { contextMother } from '../../helpers/contextMother.js';
 import {
   assertValid,
   assertHasValidationError
 } from '../../helpers/assertions.js';
+import { contextMother } from '../../helpers/contextMother.js';
+import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
+import { schemaMother } from '../../helpers/schemaMother.js';
+import { ValidationContextBuilder } from '../../helpers/ValidationContextBuilder.js';
 
 describe('Validators polymorphism.ts (Unit)', () => {
   it('should return early from checkPolymorphism if no polymorphism properties are present', () => {
@@ -341,6 +342,78 @@ describe('Validators polymorphism.ts (Unit)', () => {
         2,
         expect.objectContaining({ schema: schema2 })
       );
+    });
+  });
+
+  describe('Structured polymorphic errors (branches) - anyOf', () => {
+    it('should populate branches property with validation errors of each failing schema', () => {
+      const ctx = new ValidationContextBuilder().build();
+      const anyOfSchema = schemaMother.anyOf([
+        schemaMother.string(),
+        schemaMother.number()
+      ]);
+      const booleanValue = true;
+
+      checkPolymorphism({
+        value: booleanValue,
+        schema: anyOfSchema,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.errors).toHaveLength(1);
+      const [polymorphicError] = ctx.errors;
+      expect(polymorphicError?.message).toContain('Failed anyOf');
+      expect(polymorphicError?.branches).toEqual([
+        [
+          expect.objectContaining({
+            path: '',
+            message: 'Expected string, received boolean'
+          })
+        ],
+        [
+          expect.objectContaining({
+            path: '',
+            message: 'Expected number, received boolean'
+          })
+        ]
+      ]);
+    });
+  });
+
+  describe('Structured polymorphic errors (branches) - oneOf', () => {
+    it('should populate branches property with validation errors of each failing schema when 0 schemas match', () => {
+      const ctx = new ValidationContextBuilder().build();
+      const oneOfSchema = schemaMother.oneOf([
+        schemaMother.string(),
+        schemaMother.number()
+      ]);
+      const booleanValue = true;
+
+      checkPolymorphism({
+        value: booleanValue,
+        schema: oneOfSchema,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.errors).toHaveLength(1);
+      const [polymorphicError] = ctx.errors;
+      expect(polymorphicError?.message).toContain('expected exactly 1');
+      expect(polymorphicError?.branches).toEqual([
+        [
+          expect.objectContaining({
+            path: '',
+            message: 'Expected string, received boolean'
+          })
+        ],
+        [
+          expect.objectContaining({
+            path: '',
+            message: 'Expected number, received boolean'
+          })
+        ]
+      ]);
     });
   });
 });

@@ -6,8 +6,14 @@ export interface PathNode {
   readonly parent: PathNode | null;
 }
 
+export interface ValidationError {
+  path: string;
+  message: string;
+  branches?: ValidationError[][];
+}
+
 export class ValidationContext {
-  public readonly errors: string[] = [];
+  public readonly errors: ValidationError[] = [];
   public readonly visited: Set<object>;
   public currentPath: PathNode | null = null;
   private readonly activeObjectPolymorphism: WeakMap<
@@ -107,8 +113,12 @@ export class ValidationContext {
     return result;
   }
 
-  addError(message: string): void {
-    this.errors.push(`[${this.formatPath()}] ${message}`);
+  addError(message: string, branches?: ValidationError[][]): void {
+    this.errors.push({
+      path: this.formatPath(),
+      message,
+      ...(branches ? { branches } : {})
+    });
   }
 
   hasErrors(): boolean {
