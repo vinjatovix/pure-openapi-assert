@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ValidationContext } from '../../../src/core/ValidationContext.js';
+import type { OpenAPIV3 } from 'openapi-types';
+
 import { validateShape } from '../../../src/validators/shape.js';
 import {
   validateObject,
@@ -27,1207 +28,1133 @@ import {
   validateObjectBounds
 } from '../../../src/validators/types.js';
 
+import {
+  assertValid,
+  assertHasValidationError
+} from '../../helpers/assertions.js';
+import { contextMother } from '../../helpers/contextMother.js';
+import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
+import { schemaMother } from '../../helpers/schemaMother.js';
+
 describe('Validators types.ts (Unit)', () => {
-  it('should handle undefined properties in validateObject with Object.keys', () => {
-    const ctx = new ValidationContext();
-    const mockValidateShape = vi.fn();
+  describe('validateObject & validateArray (Structural, Circular, and Limits)', () => {
+    it('should handle undefined properties in validateObject with Object.keys', () => {
+      const ctx = contextMother.empty();
 
-    validateObject({
-      value: { id: 123 },
-      schema: {
-        type: 'object'
-      },
-      ctx,
-      validateShape: mockValidateShape
+      validateObject({
+        value: { id: 123 },
+        schema: schemaMother.object(),
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
     });
 
-    expect(ctx.hasErrors()).toBe(false);
+    it('should return early from validateArrayItems if itemsSchema is not a valid SchemaObject', () => {
+      const ctx = contextMother.empty();
+      const validateShapeSpy = vi.fn(validateShape);
+
+      validateArrayItems({
+        value: [1, 2, 3],
+        schema: new SchemaBuilder()
+          .type('array')
+          .items({ $ref: '#/components/schemas/SimpleUser' })
+          .build(),
+        ctx,
+        validateShape: validateShapeSpy
+      });
+
+      expect(validateShapeSpy).not.toHaveBeenCalled();
+    });
+
+    it('should prevent infinite loops inside validateArray for circular structures using real validateShape', () => {
+      const ctx = contextMother.empty();
+      const arr: unknown[] = [];
+      arr.push(arr);
+
+      const circularSchema =
+        schemaMother.array() as OpenAPIV3.ArraySchemaObject;
+      circularSchema.items = circularSchema;
+
+      validateArray({
+        value: arr,
+        schema: circularSchema,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
+    it('should prevent infinite loops inside validateObject for circular structures using real validateShape', () => {
+      const ctx = contextMother.empty();
+      const obj: Record<string, unknown> = {};
+      obj['self'] = obj;
+
+      const circularSchema = new SchemaBuilder().type('object').build();
+      circularSchema.properties = { self: circularSchema };
+
+      validateObject({
+        value: obj,
+        schema: circularSchema,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
+    it('should fail when object has fewer properties than minProperties', () => {
+      const ctxMinFail = contextMother.empty();
+
+      validateObject({
+        value: { a: 1 },
+        schema: new SchemaBuilder().type('object').minProperties(2).build(),
+        ctx: ctxMinFail,
+        validateShape
+      });
+
+      assertHasValidationError(
+        ctxMinFail,
+        'Object has 1 properties, minimum is 2'
+      );
+    });
+
+    it('should fail when object has more properties than maxProperties', () => {
+      const ctxMaxFail = contextMother.empty();
+
+      validateObject({
+        value: { a: 1, b: 2, c: 3 },
+        schema: new SchemaBuilder().type('object').maxProperties(2).build(),
+        ctx: ctxMaxFail,
+        validateShape
+      });
+
+      assertHasValidationError(
+        ctxMaxFail,
+        'Object has 3 properties, maximum is 2'
+      );
+    });
   });
 
-  it('should return early from validateArrayItems if itemsSchema is not a valid SchemaObject', () => {
-    const ctx = new ValidationContext();
-    const mockValidateShape = vi.fn();
+  describe('validateTypeCheck', () => {
+    it('should fail typecheck for wrong expected type and report errors', () => {
+      const ctx = contextMother.empty();
 
-    validateArrayItems({
-      value: [1, 2, 3],
-      schema: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/SimpleUser' }
-      },
-      ctx,
-      validateShape: mockValidateShape
+      const success = validateTypeCheck({
+        value: 'string',
+        schema: schemaMother.integer(),
+        ctx,
+        validateShape
+      });
+
+      expect(success).toBe(false);
+      assertHasValidationError(ctx, 'Expected integer, received string');
     });
-
-    expect(mockValidateShape).not.toHaveBeenCalled();
   });
 
-  it('should prevent infinite loops inside validateArray for circular structures using real validateShape', () => {
-    const ctx = new ValidationContext();
-    const arr: unknown[] = [];
-    arr.push(arr);
+  describe('validateInt64, validateFloat, and validateDouble formats', () => {
+    it('should trigger validateInt64 non-number type checks', () => {
+      const ctx = contextMother.empty();
 
-    const circularSchema: Record<string, unknown> = {
-      type: 'array'
-    };
-    circularSchema.items = circularSchema;
+      validateInt64({
+        value: true,
+        schema: schemaMother.int64(),
+        ctx,
+        validateShape
+      });
 
-    validateArray({
-      value: arr,
-      schema: circularSchema,
-      ctx,
-      validateShape
+      assertHasValidationError(
+        ctx,
+        'Expected 64-bit integer, received boolean'
+      );
     });
 
-    expect(ctx.hasErrors()).toBe(false);
+    it('should trigger validateInt64 with non-integer string format failure', () => {
+      const ctx = contextMother.empty();
+
+      validateInt64({
+        value: 'not-a-valid-bigint-string',
+        schema: schemaMother.int64(),
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(
+        ctx,
+        'Value not-a-valid-bigint-string is not a valid 64-bit integer'
+      );
+    });
+
+    it('should trigger validateFloat non-number type checks', () => {
+      const ctx = contextMother.empty();
+
+      validateFloat({
+        value: 'not-a-number',
+        schema: schemaMother.float(),
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Expected 32-bit float, received string');
+    });
+
+    it('should trigger validateDouble non-number type checks', () => {
+      const ctx = contextMother.empty();
+
+      validateDouble({
+        value: 'not-a-number',
+        schema: schemaMother.double(),
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(
+        ctx,
+        'Expected 64-bit float, received not-a-number'
+      );
+    });
   });
 
-  it('should prevent infinite loops inside validateObject for circular structures using real validateShape', () => {
-    const ctx = new ValidationContext();
-    const obj: Record<string, unknown> = {};
-    obj['self'] = obj;
+  describe('validateMinNumberConstraint and validateMaxNumberConstraint', () => {
+    it('should return early from validateMinNumberConstraint if minimum is missing', () => {
+      const ctx = contextMother.empty();
 
-    const circularSchema: Record<string, unknown> = {
-      type: 'object',
-      properties: {}
-    };
-    (circularSchema.properties as Record<string, unknown>).self =
-      circularSchema;
+      validateMinNumberConstraint({
+        value: 10,
+        schema: schemaMother.empty(),
+        ctx,
+        validateShape
+      });
 
-    validateObject({
-      value: obj,
-      schema: circularSchema,
-      ctx,
-      validateShape
+      assertValid(ctx);
     });
 
-    expect(ctx.hasErrors()).toBe(false);
+    it('should return early from validateMinNumberConstraint if minimum is explicitly undefined (JS consumer)', () => {
+      const ctx = contextMother.empty();
+      const schema = new SchemaBuilder()
+        .minimum(undefined as unknown as number)
+        .build();
+
+      validateMinNumberConstraint({
+        value: 10,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
+    it('should return early from validateMaxNumberConstraint if maximum is missing', () => {
+      const ctx = contextMother.empty();
+
+      validateMaxNumberConstraint({
+        value: 10,
+        schema: schemaMother.empty(),
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
+    it('should return early from validateMaxNumberConstraint if maximum is explicitly undefined (JS consumer)', () => {
+      const ctx = contextMother.empty();
+      const schema = new SchemaBuilder()
+        .maximum(undefined as unknown as number)
+        .build();
+
+      validateMaxNumberConstraint({
+        value: 10,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
   });
 
-  it('should fail typecheck for wrong expected type and report errors', () => {
-    const ctx = new ValidationContext();
-    const success = validateTypeCheck({
-      value: 'string',
-      schema: { type: 'integer' },
-      ctx,
-      validateShape: vi.fn()
+  describe('validateMultipleOfNumberConstraint base precision validation', () => {
+    it('should pass when value is a high-precision decimal multiple of standard floating point step', () => {
+      const ctx = contextMother.empty();
+      validateMultipleOfNumberConstraint({
+        value: 0.000003,
+        schema: new SchemaBuilder().multipleOf(0.000001).build(),
+        ctx,
+        validateShape
+      });
+      assertValid(ctx);
     });
 
-    expect(success).toBe(false);
-    expect(ctx.errors[0]).toContain('Expected integer, received string');
+    it('should fail when value is not a high-precision decimal multiple of standard floating point step', () => {
+      const ctx = contextMother.empty();
+      validateMultipleOfNumberConstraint({
+        value: 0.0000035,
+        schema: new SchemaBuilder().multipleOf(0.000001).build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'is not a multiple of 0.000001');
+    });
+
+    it('should pass when value is in scientific notation and is a valid multiple of scientific step', () => {
+      const ctx = contextMother.empty();
+      validateMultipleOfNumberConstraint({
+        value: 3e-7,
+        schema: new SchemaBuilder().multipleOf(1e-7).build(),
+        ctx,
+        validateShape
+      });
+      assertValid(ctx);
+    });
+
+    it('should pass when value is decimal scientific notation and is a valid multiple of decimal scientific step', () => {
+      const ctx = contextMother.empty();
+      validateMultipleOfNumberConstraint({
+        value: 4.5e-7,
+        schema: new SchemaBuilder().multipleOf(1.5e-7).build(),
+        ctx,
+        validateShape
+      });
+      assertValid(ctx);
+    });
+
+    it('should pass when value is in positive scientific notation and is a valid multiple of positive scientific step', () => {
+      const ctx = contextMother.empty();
+      validateMultipleOfNumberConstraint({
+        value: 1e20,
+        schema: new SchemaBuilder().multipleOf(1e18).build(),
+        ctx,
+        validateShape
+      });
+      assertValid(ctx);
+    });
   });
 
-  it('should trigger validateInt64 non-number type checks', () => {
-    const ctx = new ValidationContext();
-    validateInt64({
-      value: true,
-      schema: { format: 'int64' },
-      ctx,
-      validateShape: vi.fn()
+  describe('validateShape base validation requirements', () => {
+    it('should throw error when non-nullable field receives null', () => {
+      const ctx = contextMother.empty();
+      validateShape({
+        value: null,
+        schema: new SchemaBuilder().type('string').nullable(false).build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'Field is not nullable but received null');
     });
-    expect(ctx.errors[0]).toContain(
-      'Expected 64-bit integer, received boolean'
-    );
-  });
 
-  it('should trigger validateInt64 with non-integer string format failure', () => {
-    const ctx = new ValidationContext();
-    validateInt64({
-      value: 'not-a-valid-bigint-string',
-      schema: { format: 'int64' },
-      ctx,
-      validateShape: vi.fn()
+    it('should throw error when validateShape receives undefined directly', () => {
+      const ctx = contextMother.empty();
+      validateShape({
+        value: undefined,
+        schema: schemaMother.string(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'Field is required but received undefined');
     });
-    expect(ctx.errors[0]).toContain(
-      'Value not-a-valid-bigint-string is not a valid 64-bit integer'
-    );
-  });
 
-  it('should trigger validateFloat non-number type checks', () => {
-    const ctx = new ValidationContext();
-    validateFloat({
-      value: 'not-a-number',
-      schema: { format: 'float' },
-      ctx,
-      validateShape: vi.fn()
+    it('should not crash or resolve prototype properties as format validators', () => {
+      const ctx = contextMother.empty();
+      validateShape({
+        value: 'some-value',
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('hasOwnProperty')
+          .build(),
+        ctx,
+        validateShape
+      });
+      assertValid(ctx);
     });
-    expect(ctx.errors[0]).toContain('Expected 32-bit float, received string');
-  });
 
-  it('should trigger validateDouble non-number type checks', () => {
-    const ctx = new ValidationContext();
-    validateDouble({
-      value: 'not-a-number',
-      schema: { format: 'double' },
-      ctx,
-      validateShape: vi.fn()
+    it('should ignore custom formats that match prototype properties if not defined on customFormats', () => {
+      const ctx = contextMother.empty();
+      validateShape({
+        value: 'some-value',
+        schema: new SchemaBuilder().type('string').format('toString').build(),
+        ctx,
+        validateShape,
+        customFormats: {}
+      });
+      assertValid(ctx);
     });
-    expect(ctx.errors[0]).toContain(
-      'Expected 64-bit float, received not-a-number'
-    );
-  });
-
-  it('should return early from validateMinNumberConstraint if minimum is missing', () => {
-    const ctx = new ValidationContext();
-    validateMinNumberConstraint({
-      value: 10,
-      schema: {},
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.hasErrors()).toBe(false);
-  });
-
-  it('should return early from validateMinNumberConstraint if minimum is explicitly undefined (JS consumer)', () => {
-    const ctx = new ValidationContext();
-    validateMinNumberConstraint({
-      value: 10,
-      // @ts-expect-error: Explicitly testing runtime resilience against invalid undefined values passed by JS consumers
-      schema: { minimum: undefined },
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.hasErrors()).toBe(false);
-  });
-
-  it('should return early from validateMaxNumberConstraint if maximum is missing', () => {
-    const ctx = new ValidationContext();
-    validateMaxNumberConstraint({
-      value: 10,
-      schema: {},
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.hasErrors()).toBe(false);
-  });
-
-  it('should return early from validateMaxNumberConstraint if maximum is explicitly undefined (JS consumer)', () => {
-    const ctx = new ValidationContext();
-    validateMaxNumberConstraint({
-      value: 10,
-      // @ts-expect-error: Explicitly testing runtime resilience against invalid undefined values passed by JS consumers
-      schema: { maximum: undefined },
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.hasErrors()).toBe(false);
-  });
-
-  it('should validate multipleOf correctly with high floating-point precision', () => {
-    const ctx = new ValidationContext();
-    validateMultipleOfNumberConstraint({
-      value: 0.000003,
-      schema: { multipleOf: 0.000001 },
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.hasErrors()).toBe(false);
-
-    const ctxFail = new ValidationContext();
-    validateMultipleOfNumberConstraint({
-      value: 0.0000035,
-      schema: { multipleOf: 0.000001 },
-      ctx: ctxFail,
-      validateShape: vi.fn()
-    });
-    expect(ctxFail.hasErrors()).toBe(true);
-    expect(ctxFail.errors[0]).toContain('is not a multiple of 0.000001');
-
-    const ctxScientific = new ValidationContext();
-    validateMultipleOfNumberConstraint({
-      value: 3e-7,
-      schema: { multipleOf: 1e-7 },
-      ctx: ctxScientific,
-      validateShape: vi.fn()
-    });
-    expect(ctxScientific.hasErrors()).toBe(false);
-
-    const ctxScientificDecimal = new ValidationContext();
-    validateMultipleOfNumberConstraint({
-      value: 4.5e-7,
-      schema: { multipleOf: 1.5e-7 },
-      ctx: ctxScientificDecimal,
-      validateShape: vi.fn()
-    });
-    expect(ctxScientificDecimal.hasErrors()).toBe(false);
-
-    const ctxScientificPositive = new ValidationContext();
-    validateMultipleOfNumberConstraint({
-      value: 1e20,
-      schema: { multipleOf: 1e18 },
-      ctx: ctxScientificPositive,
-      validateShape: vi.fn()
-    });
-    expect(ctxScientificPositive.hasErrors()).toBe(false);
-  });
-
-  it('should validate minProperties and maxProperties constraints on objects', () => {
-    const ctxMinFail = new ValidationContext();
-    validateObject({
-      value: { a: 1 },
-      schema: { type: 'object', minProperties: 2 },
-      ctx: ctxMinFail,
-      validateShape: vi.fn()
-    });
-    expect(ctxMinFail.errors[0]).toContain(
-      'Object has 1 properties, minimum is 2'
-    );
-
-    const ctxMaxFail = new ValidationContext();
-    validateObject({
-      value: { a: 1, b: 2, c: 3 },
-      schema: { type: 'object', maxProperties: 2 },
-      ctx: ctxMaxFail,
-      validateShape: vi.fn()
-    });
-    expect(ctxMaxFail.errors[0]).toContain(
-      'Object has 3 properties, maximum is 2'
-    );
-  });
-
-  it('should throw error when non-nullable field receives null', () => {
-    const ctx = new ValidationContext();
-    validateShape({
-      value: null,
-      schema: { type: 'string', nullable: false },
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.errors[0]).toContain('Field is not nullable but received null');
-  });
-
-  it('should throw error when validateShape receives undefined directly', () => {
-    const ctx = new ValidationContext();
-    validateShape({
-      value: undefined,
-      schema: { type: 'string' },
-      ctx,
-      validateShape: vi.fn()
-    });
-    expect(ctx.errors[0]).toContain('Field is required but received undefined');
-  });
-
-  it('should not crash or resolve prototype properties as format validators', () => {
-    const ctx = new ValidationContext();
-    validateShape({
-      value: 'some-value',
-      schema: { type: 'string', format: 'hasOwnProperty' },
-      ctx,
-      validateShape
-    });
-    expect(ctx.hasErrors()).toBe(false);
-  });
-
-  it('should ignore custom formats that match prototype properties if not defined on customFormats', () => {
-    const ctx = new ValidationContext();
-    validateShape({
-      value: 'some-value',
-      schema: { type: 'string', format: 'toString' },
-      ctx,
-      validateShape,
-      customFormats: {}
-    });
-    expect(ctx.hasErrors()).toBe(false);
   });
 
   describe('BigInt constraint validation (int64)', () => {
-    it('should correctly handle integer limits defined as decimals (e.g. minimum: "1.0")', () => {
-      const ctxExclusivePass = new ValidationContext();
+    const checkMinBigInt = (
+      value: string,
+      min: number,
+      exclusive?: boolean
+    ) => {
+      const ctx = contextMother.empty();
+      const overrides: Partial<OpenAPIV3.SchemaObject> = { minimum: min };
+      if (exclusive !== undefined) overrides.exclusiveMinimum = exclusive;
       validateMinBigIntConstraint({
-        value: '2',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: '1.0' as unknown as number,
-          exclusiveMinimum: true
-        },
-        ctx: ctxExclusivePass,
-        validateShape: vi.fn()
-      });
-      expect(ctxExclusivePass.hasErrors()).toBe(false);
-
-      const ctxExclusiveFail = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '1',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: '1.0' as unknown as number,
-          exclusiveMinimum: true
-        },
-        ctx: ctxExclusiveFail,
-        validateShape: vi.fn()
-      });
-      expect(ctxExclusiveFail.hasErrors()).toBe(true);
-      expect(ctxExclusiveFail.errors[0]).toContain(
-        'Value 1 is less than or equal to minimum 1.0'
-      );
-
-      const ctxMaxExclusivePass = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '1',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: '2.0' as unknown as number,
-          exclusiveMaximum: true
-        },
-        ctx: ctxMaxExclusivePass,
-        validateShape: vi.fn()
-      });
-      expect(ctxMaxExclusivePass.hasErrors()).toBe(false);
-
-      const ctxMaxExclusiveFail = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '2',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: '2.0' as unknown as number,
-          exclusiveMaximum: true
-        },
-        ctx: ctxMaxExclusiveFail,
-        validateShape: vi.fn()
-      });
-      expect(ctxMaxExclusiveFail.hasErrors()).toBe(true);
-      expect(ctxMaxExclusiveFail.errors[0]).toContain(
-        'Value 2 is greater than or equal to maximum 2.0'
-      );
-    });
-
-    it('should validate fractional minimum limits on BigInt (minimum: 1.5)', () => {
-      const ctx = new ValidationContext();
-
-      validateMinBigIntConstraint({
-        value: '1',
-        schema: { type: 'string', format: 'int64', minimum: 1.5 },
+        value,
+        schema: schemaMother.int64(overrides),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Value 1 is less than minimum 1.5');
+      return ctx;
+    };
 
-      const ctxPass = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '2',
-        schema: { type: 'string', format: 'int64', minimum: 1.5 },
-        ctx: ctxPass,
-        validateShape: vi.fn()
+    const checkMaxBigInt = (
+      value: string,
+      max: number,
+      exclusive?: boolean
+    ) => {
+      const ctx = contextMother.empty();
+      const overrides: Partial<OpenAPIV3.SchemaObject> = { maximum: max };
+      if (exclusive !== undefined) overrides.exclusiveMaximum = exclusive;
+      validateMaxBigIntConstraint({
+        value,
+        schema: schemaMother.int64(overrides),
+        ctx,
+        validateShape
       });
-      expect(ctxPass.hasErrors()).toBe(false);
+      return ctx;
+    };
 
-      const ctxExclusivePass = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '2',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: 1.5,
-          exclusiveMinimum: true
-        },
-        ctx: ctxExclusivePass,
-        validateShape: vi.fn()
+    const checkMultBigInt = (value: string, multipleOf: number) => {
+      const ctx = contextMother.empty();
+      validateMultipleOfBigIntConstraint({
+        value,
+        schema: schemaMother.int64({ multipleOf }),
+        ctx,
+        validateShape
       });
-      expect(ctxExclusivePass.hasErrors()).toBe(false);
+      return ctx;
+    };
+
+    describe('Decimal format limits on BigInt', () => {
+      it('should pass when exclusiveMinimum is true and value is greater than decimal minimum limit', () => {
+        const ctx = contextMother.empty();
+        validateMinBigIntConstraint({
+          value: '2',
+          schema: new SchemaBuilder()
+            .type('string')
+            .format('int64')
+            .minimum('1.0' as unknown as number)
+            .exclusiveMinimum(true)
+            .build(),
+          ctx,
+          validateShape
+        });
+        assertValid(ctx);
+      });
+
+      it('should fail when exclusiveMinimum is true and value is equal to decimal minimum limit', () => {
+        const ctx = contextMother.empty();
+        validateMinBigIntConstraint({
+          value: '1',
+          schema: new SchemaBuilder()
+            .type('string')
+            .format('int64')
+            .minimum('1.0' as unknown as number)
+            .exclusiveMinimum(true)
+            .build(),
+          ctx,
+          validateShape
+        });
+        assertHasValidationError(
+          ctx,
+          'Value 1 is less than or equal to minimum 1.0'
+        );
+      });
+
+      it('should pass when exclusiveMaximum is true and value is less than decimal maximum limit', () => {
+        const ctx = contextMother.empty();
+        validateMaxBigIntConstraint({
+          value: '1',
+          schema: new SchemaBuilder()
+            .type('string')
+            .format('int64')
+            .maximum('2.0' as unknown as number)
+            .exclusiveMaximum(true)
+            .build(),
+          ctx,
+          validateShape
+        });
+        assertValid(ctx);
+      });
+
+      it('should fail when exclusiveMaximum is true and value is equal to decimal maximum limit', () => {
+        const ctx = contextMother.empty();
+        validateMaxBigIntConstraint({
+          value: '2',
+          schema: new SchemaBuilder()
+            .type('string')
+            .format('int64')
+            .maximum('2.0' as unknown as number)
+            .exclusiveMaximum(true)
+            .build(),
+          ctx,
+          validateShape
+        });
+        assertHasValidationError(
+          ctx,
+          'Value 2 is greater than or equal to maximum 2.0'
+        );
+      });
     });
 
-    it('should validate fractional maximum limits on BigInt (maximum: 2.5)', () => {
-      const ctx = new ValidationContext();
+    it.each([
+      {
+        value: '1',
+        limit: 1.5,
+        excl: false,
+        shouldPass: false,
+        expectedErr: 'Value 1 is less than minimum 1.5'
+      },
+      { value: '2', limit: 1.5, excl: false, shouldPass: true },
+      { value: '2', limit: 1.5, excl: true, shouldPass: true }
+    ])(
+      'validateMinBigIntConstraint fractional minimum: value=$value, min=$limit, exclusive=$excl',
+      ({ value, limit, excl, shouldPass, expectedErr }) => {
+        const ctx = checkMinBigInt(value, limit, excl);
+        if (shouldPass) assertValid(ctx);
+        else assertHasValidationError(ctx, expectedErr!);
+      }
+    );
 
-      validateMaxBigIntConstraint({
+    it.each([
+      {
         value: '3',
-        schema: { type: 'string', format: 'int64', maximum: 2.5 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Value 3 is greater than maximum 2.5');
+        limit: 2.5,
+        excl: false,
+        shouldPass: false,
+        expectedErr: 'Value 3 is greater than maximum 2.5'
+      },
+      { value: '2', limit: 2.5, excl: false, shouldPass: true },
+      { value: '2', limit: 2.5, excl: true, shouldPass: true }
+    ])(
+      'validateMaxBigIntConstraint fractional maximum: value=$value, max=$limit, exclusive=$excl',
+      ({ value, limit, excl, shouldPass, expectedErr }) => {
+        const ctx = checkMaxBigInt(value, limit, excl);
+        if (shouldPass) assertValid(ctx);
+        else assertHasValidationError(ctx, expectedErr!);
+      }
+    );
 
-      const ctxPass = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '2',
-        schema: { type: 'string', format: 'int64', maximum: 2.5 },
-        ctx: ctxPass,
-        validateShape: vi.fn()
-      });
-      expect(ctxPass.hasErrors()).toBe(false);
-
-      const ctxExclusivePass = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '2',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: 2.5,
-          exclusiveMaximum: true
-        },
-        ctx: ctxExclusivePass,
-        validateShape: vi.fn()
-      });
-      expect(ctxExclusivePass.hasErrors()).toBe(false);
-    });
-
-    it('should validate fractional multipleOf on BigInt (multipleOf: 2.5)', () => {
-      const ctx = new ValidationContext();
-
-      validateMultipleOfBigIntConstraint({
+    it.each([
+      {
         value: '6',
-        schema: { type: 'string', format: 'int64', multipleOf: 2.5 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Value 6 is not a multiple of 2.5');
-
-      const ctxPass = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '5',
-        schema: { type: 'string', format: 'int64', multipleOf: 2.5 },
-        ctx: ctxPass,
-        validateShape: vi.fn()
-      });
-      expect(ctxPass.hasErrors()).toBe(false);
-    });
+        multipleOf: 2.5,
+        shouldPass: false,
+        expectedErr: 'Value 6 is not a multiple of 2.5'
+      },
+      { value: '5', multipleOf: 2.5, shouldPass: true }
+    ])(
+      'validateMultipleOfBigIntConstraint: value=$value, multipleOf=$multipleOf',
+      ({ value, multipleOf, shouldPass, expectedErr }) => {
+        const ctx = checkMultBigInt(value, multipleOf);
+        if (shouldPass) assertValid(ctx);
+        else assertHasValidationError(ctx, expectedErr!);
+      }
+    );
 
     it('should throw exceptions on Infinity and -Infinity boundaries for BigInt constraints', () => {
-      const ctxMin = new ValidationContext();
-      expect(() => {
-        validateMinBigIntConstraint({
-          value: '10',
-          schema: { type: 'string', format: 'int64', minimum: Infinity },
-          ctx: ctxMin,
-          validateShape: vi.fn()
-        });
-      }).toThrow(TypeError);
-
-      const ctxMax = new ValidationContext();
-      expect(() => {
-        validateMaxBigIntConstraint({
-          value: '10',
-          schema: { type: 'string', format: 'int64', maximum: -Infinity },
-          ctx: ctxMax,
-          validateShape: vi.fn()
-        });
-      }).toThrow(TypeError);
-
-      const ctxMult = new ValidationContext();
-      expect(() => {
-        validateMultipleOfBigIntConstraint({
-          value: '10',
-          schema: { type: 'string', format: 'int64', multipleOf: Infinity },
-          ctx: ctxMult,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
+      expect(() => checkMinBigInt('10', Infinity)).toThrow(TypeError);
+      expect(() => checkMaxBigInt('10', -Infinity)).toThrow(TypeError);
+      expect(() => checkMultBigInt('10', Infinity)).not.toThrow();
     });
 
     it('should ignore empty string bounds gracefully without treating them as 0', () => {
-      const ctxMin = new ValidationContext();
+      const ctxMin = contextMother.empty();
       validateMinBigIntConstraint({
         value: '-10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: '' as unknown as number
-        },
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .minimum('' as unknown as number)
+          .build(),
         ctx: ctxMin,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctxMin.hasErrors()).toBe(false);
+      assertValid(ctxMin);
 
-      const ctxMax = new ValidationContext();
+      const ctxMax = contextMother.empty();
       validateMaxBigIntConstraint({
         value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: '   ' as unknown as number
-        },
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .maximum('   ' as unknown as number)
+          .build(),
         ctx: ctxMax,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctxMax.hasErrors()).toBe(false);
+      assertValid(ctxMax);
     });
 
     it('should handle multipleOf returning 0n due to floating point rounding limits gracefully', () => {
-      const ctx = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '123',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          multipleOf: 0.000000000000000001
-        },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(checkMultBigInt('123', 0.000000000000000001));
     });
 
     it('should handle fractional bounds that parse as integers (e.g. "10.0")', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateMinBigIntConstraint({
         value: '9',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: '10.0' as unknown as number
-        },
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .minimum('10.0' as unknown as number)
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Value 9 is less than minimum 10.0');
+      assertHasValidationError(ctx, 'Value 9 is less than minimum 10.0');
     });
 
     it('should handle multipleOf in scientific notation (negative exponent)', () => {
-      const ctx = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '10000000',
-        schema: { type: 'string', format: 'int64', multipleOf: 1e-7 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(checkMultBigInt('10000000', 1e-7));
     });
 
     it('should handle multipleOf in scientific notation (positive exponent)', () => {
-      const ctx = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '1000000000000000000000',
-        schema: { type: 'string', format: 'int64', multipleOf: 1e21 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(checkMultBigInt('1000000000000000000000', 1e21));
     });
 
     it('should return undefined if bound parses to NaN', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateMinBigIntConstraint({
         value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: 'not-a-number' as unknown as number
-        },
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .minimum('not-a-number' as unknown as number)
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should return early on invalid integer strings in validateMinBigIntConstraint and validateMaxBigIntConstraint', () => {
-      const ctxMin = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: 'abc',
-        schema: { type: 'string', format: 'int64', minimum: 10 },
-        ctx: ctxMin,
-        validateShape: vi.fn()
-      });
-      expect(ctxMin.hasErrors()).toBe(false);
-
-      const ctxMax = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: 'abc',
-        schema: { type: 'string', format: 'int64', maximum: 10 },
-        ctx: ctxMax,
-        validateShape: vi.fn()
-      });
-      expect(ctxMax.hasErrors()).toBe(false);
+      assertValid(checkMinBigInt('abc', 10));
+      assertValid(checkMaxBigInt('abc', 10));
     });
 
     it('should return early in validateObject if value is an array', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateObject({
         value: [1, 2, 3],
-        schema: { type: 'object' },
+        schema: schemaMother.object(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Expected object, received object');
+      assertHasValidationError(ctx, 'Expected object, received object');
     });
 
     it('should format type validation error for null values correctly', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateTypeCheck({
         value: null,
-        schema: { type: 'string' },
+        schema: schemaMother.string(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('received null');
+      assertHasValidationError(ctx, 'received null');
     });
 
-    it('should cover all exclusiveMinimum/exclusiveMaximum branches on BigInt', () => {
-      // 1. exclusiveMinimum true with non-fractional
-      const ctx1 = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: 10,
-          exclusiveMinimum: true
+    describe('BigInt exclusive boundary constraints', () => {
+      it.each([
+        {
+          value: '10',
+          min: 10,
+          excl: true,
+          shouldPass: false,
+          expectedErr: 'is less than or equal to minimum 10'
         },
-        ctx: ctx1,
-        validateShape: vi.fn()
-      });
-      expect(ctx1.hasErrors()).toBe(true);
+        { value: '10', min: 10, excl: false, shouldPass: true },
+        {
+          value: '10',
+          min: 10.5,
+          excl: true,
+          shouldPass: false,
+          expectedErr: 'is less than or equal to minimum 10.5'
+        }
+      ])(
+        'validateMinBigIntConstraint: value=$value, min=$min, excl=$excl',
+        ({ value, min, excl, shouldPass, expectedErr }) => {
+          const ctx = checkMinBigInt(value, min, excl);
+          if (shouldPass) assertValid(ctx);
+          else assertHasValidationError(ctx, expectedErr!);
+        }
+      );
 
-      // 2. exclusiveMinimum false with non-fractional
-      const ctx2 = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: 10,
-          exclusiveMinimum: false
+      it.each([
+        {
+          value: '10',
+          max: 10,
+          excl: true,
+          shouldPass: false,
+          expectedErr: 'is greater than or equal to maximum 10'
         },
-        ctx: ctx2,
-        validateShape: vi.fn()
-      });
-      expect(ctx2.hasErrors()).toBe(false);
-
-      // 3. exclusiveMinimum true with fractional (isFractional === true)
-      const ctx3 = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: 10.5,
-          exclusiveMinimum: true
-        },
-        ctx: ctx3,
-        validateShape: vi.fn()
-      });
-      expect(ctx3.hasErrors()).toBe(true);
-
-      // 4. exclusiveMaximum true with non-fractional
-      const ctx4 = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: 10,
-          exclusiveMaximum: true
-        },
-        ctx: ctx4,
-        validateShape: vi.fn()
-      });
-      expect(ctx4.hasErrors()).toBe(true);
-
-      // 5. exclusiveMaximum false with non-fractional
-      const ctx5 = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: 10,
-          exclusiveMaximum: false
-        },
-        ctx: ctx5,
-        validateShape: vi.fn()
-      });
-      expect(ctx5.hasErrors()).toBe(false);
-
-      // 6. exclusiveMaximum true with fractional (isFractional === true)
-      const ctx6 = new ValidationContext();
-      validateMaxBigIntConstraint({
-        value: '10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          maximum: 9.5,
-          exclusiveMaximum: true
-        },
-        ctx: ctx6,
-        validateShape: vi.fn()
-      });
-      expect(ctx6.hasErrors()).toBe(true);
+        { value: '10', max: 10, excl: false, shouldPass: true },
+        {
+          value: '10',
+          max: 9.5,
+          excl: true,
+          shouldPass: false,
+          expectedErr: 'is greater than or equal to maximum 9.5'
+        }
+      ])(
+        'validateMaxBigIntConstraint: value=$value, max=$max, excl=$excl',
+        ({ value, max, excl, shouldPass, expectedErr }) => {
+          const ctx = checkMaxBigInt(value, max, excl);
+          if (shouldPass) assertValid(ctx);
+          else assertHasValidationError(ctx, expectedErr!);
+        }
+      );
     });
 
     it('should ignore validation if value is not a valid integer string in validateMultipleOfBigIntConstraint', () => {
-      const ctx = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: 'abc',
-        schema: { type: 'string', format: 'int64', multipleOf: 5 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(checkMultBigInt('abc', 5));
     });
 
-    it('should ignore validation if multipleOf is undefined, 0, or negative in validateMultipleOfBigIntConstraint', () => {
-      // undefined (directly testing helper logic)
-      const ctx1 = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '10',
-        schema: { type: 'string', format: 'int64' },
-        ctx: ctx1,
-        validateShape: vi.fn()
+    describe('validateMultipleOfBigIntConstraint handling', () => {
+      it.each([
+        { value: '10', mult: undefined },
+        { value: '10', mult: 0 },
+        { value: '10', mult: -2 },
+        { value: '11', mult: -2 }
+      ])('should ignore validation for multipleOf=$mult', ({ value, mult }) => {
+        assertValid(checkMultBigInt(value, mult!));
       });
-      expect(ctx1.hasErrors()).toBe(false);
-
-      // 0
-      const ctx2 = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '10',
-        schema: { type: 'string', format: 'int64', multipleOf: 0 },
-        ctx: ctx2,
-        validateShape: vi.fn()
-      });
-      expect(ctx2.hasErrors()).toBe(false);
-
-      // negative
-      const ctx3 = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '10',
-        schema: { type: 'string', format: 'int64', multipleOf: -2 },
-        ctx: ctx3,
-        validateShape: vi.fn()
-      });
-      expect(ctx3.hasErrors()).toBe(false);
-
-      // negative odd value (should still be ignored as non-positive constraint)
-      const ctx4 = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '11',
-        schema: { type: 'string', format: 'int64', multipleOf: -2 },
-        ctx: ctx4,
-        validateShape: vi.fn()
-      });
-      expect(ctx4.hasErrors()).toBe(false);
     });
 
-    it('should return undefined in parseBigIntBound if bound is null, empty string, or unsupported type', () => {
-      // null
-      const ctx1 = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '-10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: null as unknown as number
-        },
-        ctx: ctx1,
-        validateShape: vi.fn()
+    describe('parseBigIntBound handling', () => {
+      it('should return undefined when bound is null', () => {
+        const ctx = contextMother.empty();
+        validateMinBigIntConstraint({
+          value: '-10',
+          schema: new SchemaBuilder()
+            .type('string')
+            .format('int64')
+            .minimum(null as unknown as number)
+            .build(),
+          ctx,
+          validateShape
+        });
+        assertValid(ctx);
       });
-      expect(ctx1.hasErrors()).toBe(false);
 
-      // unsupported type (object)
-      const ctx2 = new ValidationContext();
-      validateMinBigIntConstraint({
-        value: '-10',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: {} as unknown as number
-        },
-        ctx: ctx2,
-        validateShape: vi.fn()
+      it('should return undefined when bound is an unsupported object type', () => {
+        const ctx = contextMother.empty();
+        validateMinBigIntConstraint({
+          value: '-10',
+          schema: new SchemaBuilder()
+            .type('string')
+            .format('int64')
+            .minimum({} as unknown as number)
+            .build(),
+          ctx,
+          validateShape
+        });
+        assertValid(ctx);
       });
-      expect(ctx2.hasErrors()).toBe(false);
     });
 
     it('should support schema bound defined directly as bigint', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateMinBigIntConstraint({
         value: '9',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: 10n as unknown as number
-        },
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .minimum(10n as unknown as number)
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
+      assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
     });
 
     it('should parse non-empty string bounds successfully in parseBigIntBound', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateMinBigIntConstraint({
         value: '9',
-        schema: {
-          type: 'string',
-          format: 'int64',
-          minimum: '10' as unknown as number
-        },
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .minimum('10' as unknown as number)
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Value 9 is less than minimum 10');
+      assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
     });
 
     it('should calculate decimal places for exponential numbers with decimal bases correctly (e.g. 1.5e-7)', () => {
-      const ctx = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '15',
-        schema: { type: 'string', format: 'int64', multipleOf: 1.5e-7 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(checkMultBigInt('15', 1.5e-7));
     });
 
     it('should fail validation when validating null value in validateObject', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateObject({
         value: null,
-        schema: { type: 'object' },
+        schema: schemaMother.object(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Expected object, received null');
+      assertHasValidationError(ctx, 'Expected object, received null');
     });
 
     it('should return early in validateRequiredFields if required is undefined', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateRequiredFields({
         value: { id: 123 },
-        schema: {},
+        schema: schemaMother.empty(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should support additionalProperties: true', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateObject({
         value: { foo: 'bar', extra: 123 },
-        schema: {
-          type: 'object',
-          properties: {
-            foo: { type: 'string' }
-          },
+        schema: schemaMother.object({
+          properties: { foo: schemaMother.string() },
           additionalProperties: true
-        },
+        }),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should support direct call of validateAdditionalProperties without passing keys', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateAdditionalProperties({
         value: { foo: 'bar', extra: 123 },
-        schema: {
-          type: 'object',
-          properties: {
-            foo: { type: 'string' }
-          },
+        schema: schemaMother.object({
+          properties: { foo: schemaMother.string() },
           additionalProperties: false
-        },
+        }),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain(
+      assertHasValidationError(
+        ctx,
         "Key 'extra' is not allowed by OpenAPI schema"
       );
     });
 
     it('should handle extremely small multipleOf causing Infinity error and fallback to 0n gracefully', () => {
-      const ctx = new ValidationContext();
-      validateMultipleOfBigIntConstraint({
-        value: '10',
-        schema: { type: 'string', format: 'int64', multipleOf: 1e-310 },
-        ctx,
-        validateShape: vi.fn()
-      });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(checkMultBigInt('10', 1e-310));
     });
 
     it('should handle positive scientific notation exponents in getDecimalPlaces', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateMultipleOfConstraint({
         value: 1e21,
-        schema: { type: 'number', multipleOf: 1e21 },
+        schema: schemaMother.number({ multipleOf: 1e21 }),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should return early in validateMultipleOfNumberConstraint if multipleOf is undefined', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateMultipleOfNumberConstraint({
         value: 10,
-        schema: {},
+        schema: schemaMother.empty(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
   });
 
   describe('Robustness tests for string format and multipleOf constraints', () => {
     it('should fall back to default format registry when customFormats contains a non-function value', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateStringFormat({
         value: 'invalid-uuid',
-        schema: { type: 'string', format: 'uuid' },
+        schema: new SchemaBuilder().type('string').format('uuid').build(),
         ctx,
-        validateShape: vi.fn(),
+        validateShape,
         customFormats: { uuid: true as unknown as (value: string) => boolean }
       });
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain("Expected string format 'uuid'");
+      assertHasValidationError(ctx, "Expected string format 'uuid'");
     });
 
     it('should pass validation when value is valid and customFormats contains a non-function value', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateStringFormat({
         value: '123e4567-e89b-12d3-a456-426614174000',
-        schema: { type: 'string', format: 'uuid' },
+        schema: new SchemaBuilder().type('string').format('uuid').build(),
         ctx,
-        validateShape: vi.fn(),
+        validateShape,
         customFormats: { uuid: true as unknown as (value: string) => boolean }
       });
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
-    it('should robustly handle validateMultipleOfNumberConstraint without crashing or returning NaN', () => {
-      // 1. multipleOf is 0
-      const ctx0 = new ValidationContext();
-      expect(() => {
-        validateMultipleOfNumberConstraint({
-          value: 10,
-          schema: { type: 'number', multipleOf: 0 },
-          ctx: ctx0,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
-      expect(ctx0.hasErrors()).toBe(false);
+    describe('validateMultipleOfNumberConstraint robustness', () => {
+      it('should gracefully ignore validation when multipleOf is 0', () => {
+        const ctx = contextMother.empty();
+        expect(() => {
+          validateMultipleOfNumberConstraint({
+            value: 10,
+            schema: new SchemaBuilder().type('number').multipleOf(0).build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
 
-      // 2. multipleOf is negative
-      const ctxNeg = new ValidationContext();
-      expect(() => {
-        validateMultipleOfNumberConstraint({
-          value: 10,
-          schema: { type: 'number', multipleOf: -2 },
-          ctx: ctxNeg,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
-      expect(ctxNeg.hasErrors()).toBe(false);
+      it('should gracefully ignore validation when multipleOf is negative', () => {
+        const ctx = contextMother.empty();
+        expect(() => {
+          validateMultipleOfNumberConstraint({
+            value: 10,
+            schema: new SchemaBuilder().type('number').multipleOf(-2).build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
 
-      // 3. multipleOf is non-numeric
-      const ctxNonNum = new ValidationContext();
-      expect(() => {
-        validateMultipleOfNumberConstraint({
-          value: 10,
-          schema: {
-            type: 'number',
-            multipleOf: 'not-a-number' as unknown as number
-          },
-          ctx: ctxNonNum,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
-      expect(ctxNonNum.hasErrors()).toBe(false);
+      it('should gracefully ignore validation when multipleOf is non-numeric', () => {
+        const ctx = contextMother.empty();
+        expect(() => {
+          validateMultipleOfNumberConstraint({
+            value: 10,
+            schema: new SchemaBuilder()
+              .type('number')
+              .multipleOf('not-a-number' as unknown as number)
+              .build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
 
-      // 4. multipleOf is Infinity (overflows/finite limit check)
-      const ctxInf = new ValidationContext();
-      expect(() => {
-        validateMultipleOfNumberConstraint({
-          value: 10,
-          schema: { type: 'number', multipleOf: Infinity },
-          ctx: ctxInf,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
-      expect(ctxInf.hasErrors()).toBe(false);
+      it('should gracefully ignore validation when multipleOf is Infinity', () => {
+        const ctx = contextMother.empty();
+        expect(() => {
+          validateMultipleOfNumberConstraint({
+            value: 10,
+            schema: new SchemaBuilder()
+              .type('number')
+              .multipleOf(Infinity)
+              .build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
 
-      // 5. limits that overflow to Infinity during multiplier calculation (e.g. multiplier overflows)
-      const ctxMultInf = new ValidationContext();
-      expect(() => {
-        validateMultipleOfNumberConstraint({
-          value: 10,
-          schema: { type: 'number', multipleOf: Number.MIN_VALUE }, // extremely small multipleOf causes pow(10, decimals) to be Infinity
-          ctx: ctxMultInf,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
-      expect(ctxMultInf.hasErrors()).toBe(false);
+      it('should handle extreme multipliers that overflow to Infinity without throwing', () => {
+        const ctx = contextMother.empty();
+        expect(() => {
+          validateMultipleOfNumberConstraint({
+            value: 10,
+            schema: new SchemaBuilder()
+              .type('number')
+              .multipleOf(Number.MIN_VALUE)
+              .build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
 
-      // 6. limits that overflow during rounding/multiplication calculation (multipleInt is Infinity)
-      const ctxRoundInf = new ValidationContext();
-      expect(() => {
-        validateMultipleOfNumberConstraint({
-          value: 1.0000000001,
-          schema: { type: 'number', multipleOf: 1e300 }, // 1e300 * 1e10 overflows to Infinity
-          ctx: ctxRoundInf,
-          validateShape: vi.fn()
-        });
-      }).not.toThrow();
-      expect(ctxRoundInf.hasErrors()).toBe(false);
+      it('should handle calculations that overflow during rounding without throwing', () => {
+        const ctx = contextMother.empty();
+        expect(() => {
+          validateMultipleOfNumberConstraint({
+            value: 1.0000000001,
+            schema: new SchemaBuilder()
+              .type('number')
+              .multipleOf(1e300)
+              .build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
     });
   });
 
   describe('Fallback handling and edge-case boundaries', () => {
     it('should bypass numeric constraint validations when the value is neither a number nor an int64 string', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const args = {
         value: true,
-        schema: {
-          minimum: 5,
-          maximum: 10,
-          multipleOf: 2
-        },
+        schema: new SchemaBuilder()
+          .minimum(5)
+          .maximum(10)
+          .multipleOf(2)
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       };
 
       validateMinConstraint(args);
       validateMaxConstraint(args);
       validateMultipleOfConstraint(args);
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should correctly report "null" as the received type when array validation fails for a null value', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateArray({
         value: null,
-        schema: { type: 'array', items: {} },
+        schema: new SchemaBuilder()
+          .type('array')
+          .items(schemaMother.empty())
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Expected array, received null');
+      assertHasValidationError(ctx, 'Expected array, received null');
     });
 
     it('should default properties count to 0 in validateObjectBounds when keys array is omitted', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateObjectBounds({
         value: {},
-        schema: { minProperties: 1 },
+        schema: new SchemaBuilder().minProperties(1).build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Object has 0 properties, minimum is 1');
+      assertHasValidationError(ctx, 'Object has 0 properties, minimum is 1');
     });
 
     it('should default properties to an empty object in validateAdditionalProperties when schema properties are omitted', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateAdditionalProperties({
         value: { extraProp: 'val' },
-        schema: {
-          additionalProperties: false
-        },
+        schema: new SchemaBuilder().additionalProperties(false).build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain(
+      assertHasValidationError(
+        ctx,
         "Key 'extraProp' is not allowed by OpenAPI schema"
       );
     });
 
     it('should bypass shape validation in validateAdditionalProperties when additionalProperties is a reference object', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       validateAdditionalProperties({
         value: { extraProp: 'val' },
-        schema: {
-          properties: {},
-          additionalProperties: { $ref: '#/components/schemas/SomeSchema' }
-        },
+        schema: new SchemaBuilder()
+          .properties({})
+          .additionalProperties({ $ref: '#/components/schemas/SomeSchema' })
+          .build(),
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
   });
 
   describe('Optimizations and fast paths', () => {
     it('validateArrayUnique should correctly validate uniqueness for primitives and objects', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const value = [1, 2, 3, 2];
-      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
 
       validateArrayUnique({
         value,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Array elements must be unique');
+      assertHasValidationError(ctx, 'Array elements must be unique');
     });
 
     it('validateArrayUnique should handle object uniqueness correctly', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const value = [{ a: 1 }, { b: 2 }, { a: 1 }];
-      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
 
       validateArrayUnique({
         value,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Array elements must be unique');
+      assertHasValidationError(ctx, 'Array elements must be unique');
     });
 
     it('validateArrayUnique should recognize object uniqueness even with different key order', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const value = [
         { a: 1, b: 2 },
         { b: 2, a: 1 }
       ];
-      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
 
       validateArrayUnique({
         value,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Array elements must be unique');
+      assertHasValidationError(ctx, 'Array elements must be unique');
     });
 
     it('validateArrayUnique should correctly handle null, undefined, and nested arrays in objects', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const value = [
         { a: null, b: undefined, c: [1, undefined, 2] },
         { c: [1, undefined, 2], a: null }
       ];
-      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
 
       validateArrayUnique({
         value,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Array elements must be unique');
+      assertHasValidationError(ctx, 'Array elements must be unique');
     });
 
     it('validateArrayUnique should correctly handle circular references inside objects and prevent RangeErrors', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
 
       const cyclicObj1 = { name: 'cyclic', self: {} as unknown };
       cyclicObj1.self = cyclicObj1;
@@ -1236,21 +1163,24 @@ describe('Validators types.ts (Unit)', () => {
       cyclicObj2.self = cyclicObj2;
 
       const value = [cyclicObj1, cyclicObj2];
-      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
 
       validateArrayUnique({
         value,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Array elements must be unique');
+      assertHasValidationError(ctx, 'Array elements must be unique');
     });
 
     it('validateArrayUnique should not confuse a string value "[Circular]" with an actual circular reference (no collision)', () => {
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
 
       const cyclicObj = { self: {} as unknown };
       cyclicObj.self = cyclicObj;
@@ -1258,60 +1188,65 @@ describe('Validators types.ts (Unit)', () => {
       const literalObj = { self: '[Circular]' };
 
       const value = [cyclicObj, literalObj];
-      const schema = { type: 'array' as const, uniqueItems: true, items: {} };
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
 
       validateArrayUnique({
         value,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('validateEnum should cache and validate correctly', () => {
-      const ctx = new ValidationContext();
-      const schema = { type: 'string' as const, enum: ['admin', 'user'] };
+      const ctx = contextMother.empty();
+      const schema = new SchemaBuilder()
+        .type('string')
+        .enum(['admin', 'user'])
+        .build();
 
       validateEnum({
         value: 'guest',
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Expected one of [admin, user]');
+      assertHasValidationError(ctx, 'Expected one of [admin, user]');
     });
 
     it('validateConst should use strict identity checking', () => {
-      const ctx = new ValidationContext();
-      const schema = { type: 'number' as const, const: 42 };
+      const ctx = contextMother.empty();
+      const schema = new SchemaBuilder().type('number').const(42).build();
 
       validateConst({
         value: 42,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('validateMultipleOfNumberConstraint should fast path integers', () => {
-      const ctx = new ValidationContext();
-      const schema = { type: 'number' as const, multipleOf: 5 };
+      const ctx = contextMother.empty();
+      const schema = new SchemaBuilder().type('number').multipleOf(5).build();
 
       validateMultipleOfNumberConstraint({
         value: 12,
         schema,
         ctx,
-        validateShape: vi.fn()
+        validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('is not a multiple of 5');
+      assertHasValidationError(ctx, 'is not a multiple of 5');
     });
   });
 });
