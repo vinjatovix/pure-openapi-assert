@@ -1,315 +1,193 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
-import { ValidationContext } from '../../../src/core/ValidationContext.js';
+
 import { resolveDiscriminatorSchema } from '../../../src/validators/discriminator.js';
+import { validateShape } from '../../../src/validators/shape.js';
+
+import {
+  assertHasValidationError,
+  assertValid
+} from '../../helpers/assertions.js';
+import { contextMother } from '../../helpers/contextMother.js';
+import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 
 describe('Validators discriminator.ts (Unit)', () => {
   describe('resolveDiscriminatorSchema', () => {
-    const dogSchema = {
-      type: 'object' as const,
-      title: 'Dog',
-      properties: {
-        petType: { const: 'dog' } as unknown as OpenAPIV3.SchemaObject
-      }
-    } as unknown as OpenAPIV3.SchemaObject;
-    const catSchema = {
-      type: 'object' as const,
-      title: 'Cat',
-      properties: { petType: { enum: ['cat', 'kitty'] } }
-    } as unknown as OpenAPIV3.SchemaObject;
+    const dogSchema = new SchemaBuilder()
+      .type('object')
+      .title('Dog')
+      .properties({
+        petType: new SchemaBuilder().const('dog')
+      })
+      .build();
+
+    const catSchema = new SchemaBuilder()
+      .type('object')
+      .title('Cat')
+      .properties({
+        petType: new SchemaBuilder().enum(['cat', 'kitty'])
+      })
+      .build();
+
     const schemas: OpenAPIV3.SchemaObject[] = [
       dogSchema,
       catSchema,
       'not-a-schema-object' as unknown as OpenAPIV3.SchemaObject,
-      { type: 'object' as const, title: 'NoProps' },
-      {
-        type: 'object' as const,
-        title: 'BadProp',
-        properties: {
+      new SchemaBuilder().type('object').title('NoProps').build(),
+      new SchemaBuilder()
+        .type('object')
+        .title('BadProp')
+        .properties({
           petType: 'not-a-property-schema' as unknown as OpenAPIV3.SchemaObject
-        }
-      }
+        })
+        .build()
     ];
 
-    const parentSchema = {
-      oneOf: schemas,
-      discriminator: {
-        propertyName: 'petType',
-        mapping: {
-          dog: '#/components/schemas/Dog',
+    const parentSchema = new SchemaBuilder()
+      .oneOf(...schemas)
+      .discriminator('petType', {
+        dog: '#/components/schemas/Dog',
+        cat: '#/components/schemas/Cat'
+      })
+      .build();
+
+    it.each([
+      {
+        value: 'not-an-object',
+        expectedType: 'failed',
+        outcome: 'is not an object'
+      },
+      { value: ['item'], expectedType: 'failed', outcome: 'is not an object' },
+      {
+        value: { foo: 'bar' },
+        expectedType: 'failed',
+        outcome: "property 'petType' is missing"
+      },
+      {
+        value: { petType: undefined },
+        expectedType: 'failed',
+        outcome: "property 'petType' is missing"
+      },
+      {
+        value: { petType: { nested: 'object' } },
+        expectedType: 'failed',
+        outcome: 'must be a primitive value'
+      },
+      {
+        value: { petType: 'dog' },
+        expectedType: 'resolved',
+        outcome: dogSchema,
+        spec: { Dog: dogSchema, Cat: catSchema }
+      },
+      {
+        value: { petType: 'dog' },
+        expectedType: 'resolved',
+        outcome: dogSchema,
+        spec: { Dog: dogSchema, Cat: catSchema },
+        customMapping: {
+          dog: '#/components/schemas/NonExistentDog',
           cat: '#/components/schemas/Cat'
         }
+      },
+      {
+        value: { petType: 'Dog' },
+        expectedType: 'resolved',
+        outcome: dogSchema,
+        spec: { Dog: dogSchema, Cat: catSchema },
+        omitMapping: true
+      },
+      {
+        value: { petType: 'Dog' },
+        expectedType: 'resolved',
+        outcome: dogSchema
+      },
+      {
+        value: { petType: 'kitty' },
+        expectedType: 'resolved',
+        outcome: catSchema
+      },
+      {
+        value: { petType: 'dog' },
+        expectedType: 'resolved',
+        outcome: dogSchema
+      },
+      {
+        value: { petType: 'bird' },
+        expectedType: 'failed',
+        outcome: "value 'bird' does not match any schema"
       }
-    } as unknown as OpenAPIV3.SchemaObject;
+    ])(
+      'should resolve correctly or fail with expected error for value: $value',
+      ({ value, expectedType, outcome, spec, customMapping, omitMapping }) => {
+        const ctx = spec
+          ? contextMother.withSchemas(spec)
+          : contextMother.empty();
 
-    it('should return null and add error if value is not an object', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: 'not-an-object',
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain('is not an object');
-    });
-
-    it('should return null and add error if value is an array', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: ['item'],
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain('is not an object');
-    });
-
-    it('should return null and add error if propertyName is missing in value', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { foo: 'bar' },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain("property 'petType' is missing");
-    });
-
-    it('should return null and add error if discriminator property is explicitly set to undefined', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: undefined },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain("property 'petType' is missing");
-    });
-
-    it('should return null and add error if discriminator property is not a primitive value', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: { nested: 'object' } },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain('must be a primitive value');
-    });
-
-    it('should resolve using mapping pointer if spec is present', () => {
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Dog: dogSchema,
-            Cat: catSchema
-          }
+        let testSchema = parentSchema;
+        if (customMapping) {
+          testSchema = new SchemaBuilder()
+            .oneOf(...schemas)
+            .discriminator('petType', customMapping)
+            .build();
+        } else if (omitMapping) {
+          testSchema = new SchemaBuilder()
+            .oneOf(...schemas)
+            .discriminator('petType')
+            .build();
         }
-      } as unknown as OpenAPIV3.Document;
-      const ctx = new ValidationContext(spec);
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'dog' },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'resolved', schema: dogSchema });
-    });
 
-    it('should fall back to title matching if mapping exists but pointer is not found in schemas list', () => {
-      const parentSchemaWithInvalidMapping = {
-        oneOf: schemas,
-        discriminator: {
-          propertyName: 'petType',
-          mapping: {
-            dog: '#/components/schemas/NonExistentDog',
-            cat: '#/components/schemas/Cat'
-          }
+        const result = resolveDiscriminatorSchema({
+          validationArgs: {
+            value,
+            schema: testSchema,
+            ctx,
+            validateShape
+          },
+          schemas,
+          compositionType: 'oneOf'
+        });
+
+        if (expectedType === 'resolved') {
+          expect(result).toEqual({ type: 'resolved', schema: outcome });
+          assertValid(ctx);
+        } else {
+          expect(result).toEqual({ type: 'failed' });
+          assertHasValidationError(ctx, outcome as string);
         }
-      } as unknown as OpenAPIV3.SchemaObject;
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Dog: dogSchema,
-            Cat: catSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
-      const ctx = new ValidationContext(spec);
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'dog' },
-          schema: parentSchemaWithInvalidMapping,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'resolved', schema: dogSchema });
-    });
-
-    it('should resolve using implicit default mapping to components/schemas if mapping key is missing', () => {
-      const schemaNoMapping = {
-        oneOf: schemas,
-        discriminator: {
-          propertyName: 'petType'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Dog: dogSchema,
-            Cat: catSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
-      const ctx = new ValidationContext(spec);
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'Dog' },
-          schema: schemaNoMapping,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'resolved', schema: dogSchema });
-    });
-
-    it('should fall back to title matching if spec resolution fails', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'Dog' },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'resolved', schema: dogSchema });
-    });
-
-    it('should fall back to properties const/enum matching if title matching fails', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'kitty' },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'resolved', schema: catSchema });
-    });
-
-    it('should fall back to properties const matching if title matching fails and spec is undefined', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'dog' },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'resolved', schema: dogSchema });
-    });
-
-    it('should return null and add error if no matching schema is found', () => {
-      const ctx = new ValidationContext();
-      const result = resolveDiscriminatorSchema({
-        validationArgs: {
-          value: { petType: 'bird' },
-          schema: parentSchema,
-          ctx,
-          validateShape: vi.fn()
-        },
-        schemas: schemas,
-        compositionType: 'oneOf'
-      });
-      expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain("value 'bird' does not match any schema");
-    });
+      }
+    );
   });
 
   describe('Inherited properties and structural matching', () => {
     it('should resolve discriminator property inherited from allOf', () => {
-      const baseSchema = {
-        type: 'object' as const,
-        properties: {
-          kind: { const: 'derived-dog' } as unknown as OpenAPIV3.SchemaObject
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
-      const childSchema = {
-        title: 'DerivedDog',
-        allOf: [baseSchema],
-        properties: {
-          bark: { type: 'boolean' as const }
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const baseSchema = new SchemaBuilder()
+        .type('object')
+        .properties({
+          kind: new SchemaBuilder().const('derived-dog')
+        })
+        .build();
+      const childSchema = new SchemaBuilder()
+        .title('DerivedDog')
+        .allOf(baseSchema)
+        .properties({
+          bark: new SchemaBuilder().type('boolean')
+        })
+        .build();
       const schemas: OpenAPIV3.SchemaObject[] = [childSchema];
-      const parentSchema = {
-        oneOf: schemas,
-        discriminator: {
-          propertyName: 'kind'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(...schemas)
+        .discriminator('kind')
+        .build();
 
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { kind: 'derived-dog', bark: true },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
-        schemas: schemas,
+        schemas,
         compositionType: 'oneOf'
       });
 
@@ -317,37 +195,35 @@ describe('Validators discriminator.ts (Unit)', () => {
     });
 
     it('should resolve discriminator property when derived schema overrides with less specific type (preserving const from base)', () => {
-      const baseSchema = {
-        type: 'object' as const,
-        properties: {
-          kind: { const: 'derived-dog' } as unknown as OpenAPIV3.SchemaObject
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
-      const childSchema = {
-        title: 'DerivedDog',
-        allOf: [baseSchema],
-        properties: {
-          kind: { type: 'string' as const },
-          bark: { type: 'boolean' as const }
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const baseSchema = new SchemaBuilder()
+        .type('object')
+        .properties({
+          kind: new SchemaBuilder().const('derived-dog')
+        })
+        .build();
+      const childSchema = new SchemaBuilder()
+        .title('DerivedDog')
+        .allOf(baseSchema)
+        .properties({
+          kind: new SchemaBuilder().type('string'),
+          bark: new SchemaBuilder().type('boolean')
+        })
+        .build();
       const schemas: OpenAPIV3.SchemaObject[] = [childSchema];
-      const parentSchema = {
-        oneOf: schemas,
-        discriminator: {
-          propertyName: 'kind'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(...schemas)
+        .discriminator('kind')
+        .build();
 
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { kind: 'derived-dog', bark: true },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
-        schemas: schemas,
+        schemas,
         compositionType: 'oneOf'
       });
 
@@ -355,40 +231,30 @@ describe('Validators discriminator.ts (Unit)', () => {
     });
 
     it('should match schema structurally even if physical reference equality fails (cloned target)', () => {
-      const originalSchema = {
-        type: 'object' as const,
-        title: 'ClonedModel',
-        properties: {
-          modelType: { const: 'clone' } as unknown as OpenAPIV3.SchemaObject
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const originalSchema = new SchemaBuilder()
+        .type('object')
+        .title('ClonedModel')
+        .properties({
+          modelType: new SchemaBuilder().const('clone')
+        })
+        .build();
       const clonedSchema = structuredClone(originalSchema);
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            ClonedModel: originalSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const ctx = contextMother.withSchemas({
+        ClonedModel: originalSchema
+      });
 
-      const parentSchema = {
-        oneOf: [clonedSchema],
-        discriminator: {
-          propertyName: 'modelType'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(clonedSchema)
+        .discriminator('modelType')
+        .build();
 
-      const ctx = new ValidationContext(spec);
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { modelType: 'clone' },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
         schemas: [clonedSchema],
         compositionType: 'oneOf'
@@ -398,88 +264,74 @@ describe('Validators discriminator.ts (Unit)', () => {
     });
 
     it('should handle cyclic allOf schemas during properties resolution without crashing', () => {
-      const cyclicSchema = {
-        type: 'object' as const,
-        title: 'CyclicSchema',
-        properties: {
-          petType: { const: 'cyclic' } as unknown as OpenAPIV3.SchemaObject
-        },
-        allOf: [] as unknown[]
-      };
+      const cyclicSchema = new SchemaBuilder()
+        .type('object')
+        .title('CyclicSchema')
+        .properties({
+          petType: new SchemaBuilder().const('cyclic')
+        })
+        .build();
       cyclicSchema.allOf = [cyclicSchema];
 
-      const parentSchema = {
-        oneOf: [cyclicSchema as unknown as OpenAPIV3.SchemaObject],
-        discriminator: {
-          propertyName: 'petType'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(cyclicSchema)
+        .discriminator('petType')
+        .build();
 
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { petType: 'cyclic' },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
-        schemas: [cyclicSchema as unknown as OpenAPIV3.SchemaObject],
+        schemas: [cyclicSchema],
         compositionType: 'oneOf'
       });
 
       expect(result).toEqual({
         type: 'resolved',
-        schema: cyclicSchema as unknown as OpenAPIV3.SchemaObject
+        schema: cyclicSchema
       });
     });
   });
 
   describe('Fallback ambiguity and prototype safety', () => {
     it('should not look up discriminator values on Object.prototype (e.g. toString)', () => {
-      const dogSchema = {
-        type: 'object' as const,
-        title: 'Dog',
-        properties: {
-          petType: { const: 'dog' } as unknown as OpenAPIV3.SchemaObject
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const dogSchema = new SchemaBuilder()
+        .type('object')
+        .title('Dog')
+        .properties({
+          petType: new SchemaBuilder().const('dog')
+        })
+        .build();
 
-      const parentSchema = {
-        oneOf: [dogSchema],
-        discriminator: {
-          propertyName: 'petType',
-          mapping: {
-            dog: '#/components/schemas/Dog'
-          }
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(dogSchema)
+        .discriminator('petType', {
+          dog: '#/components/schemas/Dog'
+        })
+        .build();
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Dog: dogSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
-
-      const ctx = new ValidationContext(spec);
+      const ctx = contextMother.withSchemas({
+        Dog: dogSchema
+      });
 
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { petType: 'toString' },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
         schemas: [dogSchema],
         compositionType: 'oneOf'
       });
 
       expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain(
+      assertHasValidationError(
+        ctx,
         "value 'toString' does not match any schema"
       );
     });
@@ -490,50 +342,39 @@ describe('Validators discriminator.ts (Unit)', () => {
       (Object.prototype as Record<string, string>).petType = 'dog';
 
       try {
-        const dogSchema = {
-          type: 'object' as const,
-          title: 'Dog',
-          properties: {
-            petType: { const: 'dog' } as unknown as OpenAPIV3.SchemaObject
-          }
-        } as unknown as OpenAPIV3.SchemaObject;
+        const dogSchema = new SchemaBuilder()
+          .type('object')
+          .title('Dog')
+          .properties({
+            petType: new SchemaBuilder().const('dog')
+          })
+          .build();
 
-        const parentSchema = {
-          oneOf: [dogSchema],
-          discriminator: {
-            propertyName: 'petType',
-            mapping: {
-              dog: '#/components/schemas/Dog'
-            }
-          }
-        } as unknown as OpenAPIV3.SchemaObject;
+        const parentSchema = new SchemaBuilder()
+          .oneOf(dogSchema)
+          .discriminator('petType', {
+            dog: '#/components/schemas/Dog'
+          })
+          .build();
 
-        const spec = {
-          openapi: '3.0.0',
-          info: { title: 'Test', version: '1.0.0' },
-          paths: {},
-          components: {
-            schemas: {
-              Dog: dogSchema
-            }
-          }
-        } as unknown as OpenAPIV3.Document;
-
-        const ctx = new ValidationContext(spec);
+        const ctx = contextMother.withSchemas({
+          Dog: dogSchema
+        });
 
         const result = resolveDiscriminatorSchema({
           validationArgs: {
             value: {},
             schema: parentSchema,
             ctx,
-            validateShape: vi.fn()
+            validateShape
           },
           schemas: [dogSchema],
           compositionType: 'oneOf'
         });
 
         expect(result).toEqual({ type: 'failed' });
-        expect(ctx.errors[0]).toContain(
+        assertHasValidationError(
+          ctx,
           "property 'petType' is missing in object"
         );
       } finally {
@@ -548,70 +389,72 @@ describe('Validators discriminator.ts (Unit)', () => {
     });
 
     it('should ignore property fallback match if it is ambiguous (multiple schemas match)', () => {
-      const targetA = {
-        type: 'object' as const,
-        properties: {
-          kind: { const: 'duplicate' } as unknown as OpenAPIV3.SchemaObject
-        }
-      } as OpenAPIV3.SchemaObject;
-      const targetB = {
-        type: 'object' as const,
-        properties: {
-          kind: { const: 'duplicate' } as unknown as OpenAPIV3.SchemaObject
-        }
-      } as OpenAPIV3.SchemaObject;
-      const parentSchema = {
-        oneOf: [targetA, targetB],
-        discriminator: { propertyName: 'kind' }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const targetA = new SchemaBuilder()
+        .type('object')
+        .properties({
+          kind: new SchemaBuilder().const('duplicate')
+        })
+        .build();
+      const targetB = new SchemaBuilder()
+        .type('object')
+        .properties({
+          kind: new SchemaBuilder().const('duplicate')
+        })
+        .build();
+      const parentSchema = new SchemaBuilder()
+        .oneOf(targetA, targetB)
+        .discriminator('kind')
+        .build();
 
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { kind: 'duplicate' },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
         schemas: [targetA, targetB],
         compositionType: 'oneOf'
       });
 
       expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain(
+      assertHasValidationError(
+        ctx,
         "value 'duplicate' does not match any schema"
       );
     });
 
     it('should ignore matchByTitle fallback match if the title is ambiguous', () => {
-      const targetA = {
-        type: 'object' as const,
-        title: 'SameTitle'
-      } as OpenAPIV3.SchemaObject;
-      const targetB = {
-        type: 'object' as const,
-        title: 'SameTitle'
-      } as OpenAPIV3.SchemaObject;
+      const targetA = new SchemaBuilder()
+        .type('object')
+        .title('SameTitle')
+        .build();
+      const targetB = new SchemaBuilder()
+        .type('object')
+        .title('SameTitle')
+        .build();
 
-      const parentSchema = {
-        oneOf: [targetA, targetB],
-        discriminator: { propertyName: 'kind' }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(targetA, targetB)
+        .discriminator('kind')
+        .build();
 
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
         validationArgs: {
           value: { kind: 'SameTitle' },
           schema: parentSchema,
           ctx,
-          validateShape: vi.fn()
+          validateShape
         },
         schemas: [targetA, targetB],
         compositionType: 'oneOf'
       });
 
       expect(result).toEqual({ type: 'failed' });
-      expect(ctx.errors[0]).toContain(
+      assertHasValidationError(
+        ctx,
         "value 'SameTitle' does not match any schema in 'oneOf'"
       );
     });

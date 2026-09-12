@@ -1,42 +1,47 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
-import { ValidationContext } from '../../../src/core/ValidationContext.js';
-import type { ValidationArgs } from '../../../src/validators/types.js';
+
 import { checkPolymorphism } from '../../../src/validators/polymorphism.js';
 import { validateShape } from '../../../src/validators/shape.js';
 
+import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
+import { ValidationContextBuilder } from '../../helpers/ValidationContextBuilder.js';
+import { contextMother } from '../../helpers/contextMother.js';
+import {
+  assertValid,
+  assertHasValidationError
+} from '../../helpers/assertions.js';
+
 describe('Validators polymorphism.ts (Unit)', () => {
   it('should return early from checkPolymorphism if no polymorphism properties are present', () => {
-    const ctx = new ValidationContext();
+    const ctx = new ValidationContextBuilder().build();
     checkPolymorphism({
       value: 'any',
-      schema: {},
+      schema: new SchemaBuilder().build(),
       ctx,
-      validateShape: vi.fn()
+      validateShape
     });
-    expect(ctx.hasErrors()).toBe(false);
+    assertValid(ctx);
   });
 
   describe('Validation state management across branches', () => {
     it('should ensure the branch root is deleted from visited in validateSubSchema to allow full branch validation', () => {
-      const ctx = new ValidationContext();
+      const ctx = new ValidationContextBuilder().build();
       const cyclicValue: Record<string, unknown> = {};
       cyclicValue.self = cyclicValue;
 
       ctx.visited.add(cyclicValue);
 
-      const targetSchema = {
-        type: 'object' as const,
-        properties: {
-          self: { type: 'object' as const }
-        }
-      } as OpenAPIV3.SchemaObject;
+      const targetSchema = new SchemaBuilder()
+        .type('object')
+        .properties({
+          self: new SchemaBuilder().type('object')
+        })
+        .build();
 
       checkPolymorphism({
         value: cyclicValue,
-        schema: {
-          oneOf: [targetSchema]
-        },
+        schema: new SchemaBuilder().oneOf(targetSchema).build(),
         ctx,
         validateShape: (args) => {
           expect(args.ctx.visited.has(cyclicValue)).toBe(false);
@@ -47,25 +52,23 @@ describe('Validators polymorphism.ts (Unit)', () => {
 
   describe('unresolved $ref filtering', () => {
     it('should skip bare $ref objects in allOf', () => {
-      const ctx = new ValidationContext();
-      const validateShape = vi.fn();
+      const ctx = new ValidationContextBuilder().build();
+      const validateShapeSpy = vi.fn(validateShape);
 
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
-      const stringSchema: OpenAPIV3.SchemaObject = { type: 'string' };
+      const stringSchema = new SchemaBuilder().type('string').build();
 
       checkPolymorphism({
         value: 'any',
-        schema: {
-          allOf: [unresolvedRef, stringSchema]
-        },
+        schema: new SchemaBuilder().allOf(unresolvedRef, stringSchema).build(),
         ctx,
-        validateShape
+        validateShape: validateShapeSpy
       });
 
-      expect(validateShape).toHaveBeenCalledTimes(1);
-      expect(validateShape).toHaveBeenCalledWith(
+      expect(validateShapeSpy).toHaveBeenCalledTimes(1);
+      expect(validateShapeSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           schema: stringSchema
         })
@@ -73,61 +76,43 @@ describe('Validators polymorphism.ts (Unit)', () => {
     });
 
     it('should skip bare $ref objects in anyOf', () => {
-      const ctx = new ValidationContext();
-      const stringSchema: OpenAPIV3.SchemaObject = { type: 'string' };
+      const ctx = new ValidationContextBuilder().build();
+      const stringSchema = new SchemaBuilder().type('string').build();
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
 
-      const validateShape = vi.fn(({ ctx: subCtx, schema }: ValidationArgs) => {
-        if (schema.type === stringSchema.type) {
-          subCtx.addError('Invalid string');
-        }
-      });
-
       checkPolymorphism({
-        value: 'any',
-        schema: {
-          anyOf: [unresolvedRef, stringSchema]
-        },
+        value: 123, // Passing number fails string type check in real validateShape
+        schema: new SchemaBuilder().anyOf(unresolvedRef, stringSchema).build(),
         ctx,
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Failed anyOf');
+      assertHasValidationError(ctx, 'Failed anyOf');
     });
 
     it('should skip bare $ref objects in oneOf', () => {
-      const ctx = new ValidationContext();
-      const stringSchema: OpenAPIV3.SchemaObject = { type: 'string' };
+      const ctx = new ValidationContextBuilder().build();
+      const stringSchema = new SchemaBuilder().type('string').build();
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
 
-      const validateShape = vi.fn(({ ctx: subCtx, schema }: ValidationArgs) => {
-        if (schema.type === stringSchema.type) {
-          subCtx.addError('Invalid string');
-        }
-      });
-
       checkPolymorphism({
-        value: 'any',
-        schema: {
-          oneOf: [unresolvedRef, stringSchema]
-        },
+        value: 123, // Passing number fails string type check in real validateShape
+        schema: new SchemaBuilder().oneOf(unresolvedRef, stringSchema).build(),
         ctx,
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('matches 0 schemas');
+      assertHasValidationError(ctx, 'matches 0 schemas');
     });
   });
 
   describe('Cyclic references and recursion prevention', () => {
     it('should not bypass branch validation for cyclic properties in oneOf (using const)', () => {
-      const ctx = new ValidationContext();
+      const ctx = new ValidationContextBuilder().build();
 
       const cyclicValue: Record<string, unknown> = {
         name: 'test-user',
@@ -137,40 +122,38 @@ describe('Validators polymorphism.ts (Unit)', () => {
 
       ctx.visited.add(cyclicValue);
 
-      const schema1 = {
-        type: 'object' as const,
-        required: ['name', 'role', 'self'],
-        properties: {
-          name: { type: 'string' as const },
-          role: { const: 'admin' } as unknown as OpenAPIV3.SchemaObject,
-          self: { type: 'object' as const }
-        }
-      } as OpenAPIV3.SchemaObject;
+      const schema1 = new SchemaBuilder()
+        .type('object')
+        .required('name', 'role', 'self')
+        .properties({
+          name: new SchemaBuilder().type('string'),
+          role: new SchemaBuilder().const('admin'),
+          self: new SchemaBuilder().type('object')
+        })
+        .build();
 
-      const schema2 = {
-        type: 'object' as const,
-        required: ['name', 'role', 'self'],
-        properties: {
-          name: { type: 'string' as const },
-          role: { const: 'user' } as unknown as OpenAPIV3.SchemaObject,
-          self: { type: 'object' as const }
-        }
-      } as OpenAPIV3.SchemaObject;
+      const schema2 = new SchemaBuilder()
+        .type('object')
+        .required('name', 'role', 'self')
+        .properties({
+          name: new SchemaBuilder().type('string'),
+          role: new SchemaBuilder().const('user'),
+          self: new SchemaBuilder().type('object')
+        })
+        .build();
 
       checkPolymorphism({
         value: cyclicValue,
-        schema: {
-          oneOf: [schema1, schema2]
-        },
+        schema: new SchemaBuilder().oneOf(schema1, schema2).build(),
         ctx,
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should not bypass branch validation for cyclic properties in oneOf (using enum)', () => {
-      const ctx = new ValidationContext();
+      const ctx = new ValidationContextBuilder().build();
 
       const cyclicValue: Record<string, unknown> = {
         name: 'test-user',
@@ -180,69 +163,54 @@ describe('Validators polymorphism.ts (Unit)', () => {
 
       ctx.visited.add(cyclicValue);
 
-      const schema1 = {
-        type: 'object' as const,
-        required: ['name', 'role', 'self'],
-        properties: {
-          name: { type: 'string' as const },
-          role: { enum: ['admin'] },
-          self: { type: 'object' as const }
-        }
-      } as OpenAPIV3.SchemaObject;
+      const schema1 = new SchemaBuilder()
+        .type('object')
+        .required('name', 'role', 'self')
+        .properties({
+          name: new SchemaBuilder().type('string'),
+          role: new SchemaBuilder().enum(['admin']),
+          self: new SchemaBuilder().type('object')
+        })
+        .build();
 
-      const schema2 = {
-        type: 'object' as const,
-        required: ['name', 'role', 'self'],
-        properties: {
-          name: { type: 'string' as const },
-          role: { enum: ['user'] },
-          self: { type: 'object' as const }
-        }
-      } as OpenAPIV3.SchemaObject;
+      const schema2 = new SchemaBuilder()
+        .type('object')
+        .required('name', 'role', 'self')
+        .properties({
+          name: new SchemaBuilder().type('string'),
+          role: new SchemaBuilder().enum(['user']),
+          self: new SchemaBuilder().type('object')
+        })
+        .build();
 
       checkPolymorphism({
         value: cyclicValue,
-        schema: {
-          oneOf: [schema1, schema2]
-        },
+        schema: new SchemaBuilder().oneOf(schema1, schema2).build(),
         ctx,
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should not bypass branch validation for cyclic properties in tryValidateDiscriminator', () => {
-      const dogSchema = {
-        type: 'object' as const,
-        title: 'Dog',
-        required: ['petType', 'bark', 'self'],
-        properties: {
-          petType: { const: 'dog' } as unknown as OpenAPIV3.SchemaObject,
-          bark: { type: 'boolean' as const },
-          self: { type: 'object' as const }
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const dogSchema = new SchemaBuilder()
+        .type('object')
+        .title('Dog')
+        .required('petType', 'bark', 'self')
+        .properties({
+          petType: new SchemaBuilder().const('dog'),
+          bark: new SchemaBuilder().type('boolean'),
+          self: new SchemaBuilder().type('object')
+        })
+        .build();
 
-      const parentSchema = {
-        oneOf: [dogSchema],
-        discriminator: {
-          propertyName: 'petType'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .oneOf(dogSchema)
+        .discriminator('petType')
+        .build();
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Dog: dogSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
-
-      const ctx = new ValidationContext(spec);
+      const ctx = contextMother.withSchemas({ Dog: dogSchema });
 
       const cyclicValue: Record<string, unknown> = {
         petType: 'dog',
@@ -259,42 +227,30 @@ describe('Validators polymorphism.ts (Unit)', () => {
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]).toContain('Expected boolean, received string');
+      assertHasValidationError(ctx, 'Expected boolean, received string');
     });
 
     it('should prevent stack overflow in recursive discriminator resolution', () => {
-      const parentSchema = {
-        type: 'object' as const,
-        discriminator: {
-          propertyName: 'type'
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const parentSchema = new SchemaBuilder()
+        .type('object')
+        .discriminator('type')
+        .build();
 
-      const childSchema = {
-        title: 'Child',
-        allOf: [parentSchema],
-        properties: {
-          type: { const: 'child' } as unknown as OpenAPIV3.SchemaObject,
-          valid: { type: 'boolean' as const }
-        }
-      } as unknown as OpenAPIV3.SchemaObject;
+      const childSchema = new SchemaBuilder()
+        .title('Child')
+        .allOf(parentSchema)
+        .properties({
+          type: new SchemaBuilder().const('child'),
+          valid: new SchemaBuilder().type('boolean')
+        })
+        .build();
 
       parentSchema.oneOf = [childSchema];
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Recursive Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Parent: parentSchema,
-            Child: childSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
-
-      const ctx = new ValidationContext(spec);
+      const ctx = contextMother.withSchemas({
+        Parent: parentSchema,
+        Child: childSchema
+      });
       const cyclicValue = { type: 'child', valid: true };
 
       checkPolymorphism({
@@ -304,26 +260,24 @@ describe('Validators polymorphism.ts (Unit)', () => {
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should prevent stack overflow in recursive compositions without a discriminator', () => {
-      const recursiveSchema: OpenAPIV3.SchemaObject = {
-        type: 'object',
-        properties: {
-          nested: {}
-        }
-      };
+      const recursiveSchema = new SchemaBuilder()
+        .type('object')
+        .properties({
+          nested: new SchemaBuilder().build()
+        })
+        .build();
 
-      const parentSchema: OpenAPIV3.SchemaObject = {
-        oneOf: [recursiveSchema]
-      };
+      const parentSchema = new SchemaBuilder().oneOf(recursiveSchema).build();
 
       if (recursiveSchema.properties) {
         recursiveSchema.properties.nested = parentSchema;
       }
 
-      const ctx = new ValidationContext();
+      const ctx = new ValidationContextBuilder().build();
       interface CyclicObject {
         nested?: CyclicObject;
       }
@@ -337,22 +291,18 @@ describe('Validators polymorphism.ts (Unit)', () => {
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
 
     it('should prevent stack overflow in recursive compositions with primitive values', () => {
-      const recursiveSchema: OpenAPIV3.SchemaObject = {
-        type: 'string',
-        allOf: []
-      };
+      const recursiveSchema = new SchemaBuilder().type('string').build();
+      recursiveSchema.allOf = [];
 
-      const parentSchema: OpenAPIV3.SchemaObject = {
-        oneOf: [recursiveSchema]
-      };
+      const parentSchema = new SchemaBuilder().oneOf(recursiveSchema).build();
 
       recursiveSchema.allOf = [parentSchema];
 
-      const ctx = new ValidationContext();
+      const ctx = new ValidationContextBuilder().build();
       const primitiveValue = 'hello';
 
       checkPolymorphism({
@@ -362,34 +312,32 @@ describe('Validators polymorphism.ts (Unit)', () => {
         validateShape
       });
 
-      expect(ctx.hasErrors()).toBe(false);
+      assertValid(ctx);
     });
   });
 
   describe('oneOf short-circuit optimization', () => {
     it('should stop evaluating schemas as soon as more than one schema passes', () => {
-      const ctx = new ValidationContext();
-      const schema1 = { type: 'string' } as OpenAPIV3.SchemaObject;
-      const schema2 = { type: 'string' } as OpenAPIV3.SchemaObject;
-      const schema3 = { type: 'string' } as OpenAPIV3.SchemaObject;
+      const ctx = new ValidationContextBuilder().build();
+      const schema1 = new SchemaBuilder().type('string').build();
+      const schema2 = new SchemaBuilder().type('string').build();
+      const schema3 = new SchemaBuilder().type('string').build();
 
-      const validateShape = vi.fn();
+      const validateShapeSpy = vi.fn(validateShape);
 
       checkPolymorphism({
         value: 'any',
-        schema: {
-          oneOf: [schema1, schema2, schema3]
-        },
+        schema: new SchemaBuilder().oneOf(schema1, schema2, schema3).build(),
         ctx,
-        validateShape
+        validateShape: validateShapeSpy
       });
 
-      expect(validateShape).toHaveBeenCalledTimes(2);
-      expect(validateShape).toHaveBeenNthCalledWith(
+      expect(validateShapeSpy).toHaveBeenCalledTimes(2);
+      expect(validateShapeSpy).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({ schema: schema1 })
       );
-      expect(validateShape).toHaveBeenNthCalledWith(
+      expect(validateShapeSpy).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({ schema: schema2 })
       );
