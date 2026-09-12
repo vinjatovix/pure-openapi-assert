@@ -2,7 +2,7 @@ import type { OpenAPIV3 } from 'openapi-types';
 import { isPlainObject, isSchemaObject } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 
-export function validateObjectBounds(args: ValidationArgs): void {
+function validateObjectBounds(args: ValidationArgs): void {
   const { schema, ctx, keys } = args;
   const keysCount = keys ? keys.length : 0;
   if (schema.minProperties !== undefined && keysCount < schema.minProperties) {
@@ -17,7 +17,7 @@ export function validateObjectBounds(args: ValidationArgs): void {
   }
 }
 
-export function validateRequiredFields(
+function validateRequiredFields(
   args: ValidationArgs<Record<string, unknown>>
 ): void {
   const { value: obj, schema, ctx } = args;
@@ -42,7 +42,7 @@ const schemaPropertiesEntriesCache = new WeakMap<
   [string, OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject][]
 >();
 
-export function validateAdditionalProperties(
+function validateAdditionalProperties(
   args: ValidationArgs<Record<string, unknown>>
 ): void {
   const { value: obj, schema, ctx, keys, validateShape, customFormats } = args;
@@ -84,7 +84,7 @@ export function validateAdditionalProperties(
   }
 }
 
-export function validateDeclaredProperties(
+function validateDeclaredProperties(
   args: ValidationArgs<Record<string, unknown>>
 ): void {
   const { value: obj, schema, ctx, validateShape, customFormats } = args;

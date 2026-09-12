@@ -3,7 +3,7 @@ import { type ValidationArgs } from './args.js';
 import { CycleTracker, CYCLE_DETECTED } from '../core/CycleTracker.js';
 import { isPrimitive, isSchemaObject } from '../core/utils.js';
 
-export function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
+function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx } = args;
   if (schema.minItems !== undefined && value.length < schema.minItems) {
     ctx.addError(
@@ -58,7 +58,7 @@ function canonicalStringify(
   return result;
 }
 
-export function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
+function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx } = args;
   if (!schema.uniqueItems) {
     return;
@@ -86,7 +86,7 @@ export function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
   }
 }
 
-export function validateArrayItems(args: ValidationArgs<unknown[]>): void {
+function validateArrayItems(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx, validateShape, customFormats } = args;
   const arraySchema = schema as OpenAPIV3.ArraySchemaObject;
   const itemsSchema: unknown = arraySchema.items;

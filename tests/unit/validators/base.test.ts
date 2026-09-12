@@ -4,9 +4,7 @@ import {
   validateTypeCheck,
   validateEnum,
   validateConst,
-  validateMinConstraint,
-  validateMaxConstraint,
-  validateMultipleOfConstraint
+  validateBaseType
 } from '../../../src/validators/types.js';
 
 import {
@@ -131,7 +129,7 @@ describe('Validators base/core (Unit)', () => {
 
   describe('Fallback handling and edge-case boundaries', () => {
     it('should bypass numeric constraint validations when the value is neither a number nor an int64 string', () => {
-      const args = {
+      validateBaseType({
         value: true,
         schema: new SchemaBuilder()
           .minimum(5)
@@ -140,11 +138,7 @@ describe('Validators base/core (Unit)', () => {
           .build(),
         ctx,
         validateShape
-      };
-
-      validateMinConstraint(args);
-      validateMaxConstraint(args);
-      validateMultipleOfConstraint(args);
+      });
 
       assertValid(ctx);
     });

@@ -1,11 +1,6 @@
 import { describe, it, beforeEach } from 'vitest';
 import { validateShape } from '../../../src/validators/shape.js';
-import {
-  validateObject,
-  validateRequiredFields,
-  validateAdditionalProperties,
-  validateObjectBounds
-} from '../../../src/validators/types.js';
+import { validateObject } from '../../../src/validators/types.js';
 
 import {
   assertValid,
@@ -104,9 +99,9 @@ describe('Validators object (Unit)', () => {
     });
   });
 
-  describe('validateRequiredFields and validateAdditionalProperties edge cases', () => {
-    it('should return early in validateRequiredFields if required is undefined', () => {
-      validateRequiredFields({
+  describe('Required Fields and Additional Properties edge cases (via validateObject)', () => {
+    it('should not fail validation when required is undefined in schema', () => {
+      validateObject({
         value: { id: 123 },
         schema: schemaMother.empty(),
         ctx,
@@ -128,8 +123,8 @@ describe('Validators object (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('should support direct call of validateAdditionalProperties without passing keys', () => {
-      validateAdditionalProperties({
+    it('should disallow additional properties when additionalProperties is false', () => {
+      validateObject({
         value: { foo: 'bar', extra: 123 },
         schema: schemaMother.object({
           properties: { foo: schemaMother.string() },
@@ -144,8 +139,8 @@ describe('Validators object (Unit)', () => {
       );
     });
 
-    it('should default properties count to 0 in validateObjectBounds when keys array is omitted', () => {
-      validateObjectBounds({
+    it('should default properties count to 0 when keys array is calculated internally', () => {
+      validateObject({
         value: {},
         schema: new SchemaBuilder().minProperties(1).build(),
         ctx,
@@ -155,8 +150,8 @@ describe('Validators object (Unit)', () => {
       assertHasValidationError(ctx, 'Object has 0 properties, minimum is 1');
     });
 
-    it('should default properties to an empty object in validateAdditionalProperties when schema properties are omitted', () => {
-      validateAdditionalProperties({
+    it('should default properties to an empty object when schema properties are omitted', () => {
+      validateObject({
         value: { extraProp: 'val' },
         schema: new SchemaBuilder().additionalProperties(false).build(),
         ctx,
@@ -169,8 +164,8 @@ describe('Validators object (Unit)', () => {
       );
     });
 
-    it('should bypass shape validation in validateAdditionalProperties when additionalProperties is a reference object', () => {
-      validateAdditionalProperties({
+    it('should bypass shape validation when additionalProperties is a reference object', () => {
+      validateObject({
         value: { extraProp: 'val' },
         schema: new SchemaBuilder()
           .properties({})

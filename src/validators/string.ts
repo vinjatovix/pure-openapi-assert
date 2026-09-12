@@ -1,7 +1,7 @@
 import { type ValidationArgs } from './args.js';
 import { formatRegistry, getCachedRegex } from './format.js';
 
-export function validateStringFormat(args: ValidationArgs<string>): void {
+function validateStringFormat(args: ValidationArgs<string>): void {
   const { value, schema, ctx, customFormats } = args;
   if (!schema.format) return;
 
@@ -24,7 +24,7 @@ export function validateStringFormat(args: ValidationArgs<string>): void {
   }
 }
 
-export function validateStringLength(args: ValidationArgs<string>): void {
+function validateStringLength(args: ValidationArgs<string>): void {
   const { value, schema, ctx } = args;
   if (schema.minLength !== undefined && value.length < schema.minLength) {
     ctx.addError(
@@ -38,7 +38,7 @@ export function validateStringLength(args: ValidationArgs<string>): void {
   }
 }
 
-export function validateStringPattern(args: ValidationArgs<string>): void {
+function validateStringPattern(args: ValidationArgs<string>): void {
   const { value, schema, ctx } = args;
   if (schema.pattern) {
     const regex = getCachedRegex(schema.pattern);

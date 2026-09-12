@@ -12,7 +12,7 @@ import {
   validateMultipleOfBigIntConstraint,
   validateMultipleOfNumberConstraint,
   validateMultipleOfConstraint
-} from '../../../src/validators/types.js';
+} from '../../../src/validators/number.js';
 
 import {
   assertValid,
