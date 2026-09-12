@@ -1,9 +1,9 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { ValidationContext } from '../core/ValidationContext.js';
 import { isPlainObject, isPrimitive } from '../core/utils.js';
+import { type ValidationArgs } from './args.js';
 import { findSchemaByPointer } from './pointers.js';
 import { schemaMatchesProperty } from './properties.js';
-import { type ValidationArgs } from './types.js';
 
 type DiscriminatorResolution =
   | { type: 'no_discriminator' }

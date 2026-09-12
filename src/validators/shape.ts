@@ -1,6 +1,6 @@
+import { type ValidationArgs } from './args.js';
 import { checkPolymorphism } from './polymorphism.js';
 import {
-  type ValidationArgs,
   validateArray,
   validateBaseType,
   validateObject,
