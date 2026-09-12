@@ -1,13 +1,13 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import {
   ValidationContext,
-  type ValidationError
+  type ValidationIssue
 } from '../core/ValidationContext.js';
 import { isPlainObject, isSchemaObject } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 import { resolveDiscriminatorSchema } from './discriminator.js';
 
-function formatBranchErrors(branchErrors: ValidationError[][]): string {
+function formatBranchErrors(branchErrors: ValidationIssue[][]): string {
   return branchErrors
     .map((errors, index) => {
       const isLast = index === branchErrors.length - 1;
@@ -26,7 +26,7 @@ function formatBranchErrors(branchErrors: ValidationError[][]): string {
 function validateSubSchema(
   subSchema: OpenAPIV3.SchemaObject,
   args: ValidationArgs<unknown>
-): ValidationError[] {
+): { issues: ValidationIssue[] } {
   const { value, ctx, validateShape, customFormats } = args;
   let subCtx: ValidationContext | undefined;
 
@@ -43,7 +43,9 @@ function validateSubSchema(
       customFormats
     });
   });
-  return subCtx ? subCtx.errors : [];
+  return {
+    issues: subCtx ? subCtx.issues : []
+  };
 }
 
 function tryValidateDiscriminator(args: {
@@ -61,8 +63,8 @@ function tryValidateDiscriminator(args: {
     return true;
   }
   if (result.type === 'resolved') {
-    const errors = validateSubSchema(result.schema, validationArgs);
-    validationArgs.ctx.errors.push(...errors);
+    const { issues } = validateSubSchema(result.schema, validationArgs);
+    validationArgs.ctx.addIssues(issues);
     return true;
   }
   return false;
@@ -73,8 +75,8 @@ function validateAllOf(args: ValidationArgs<unknown>): void {
   const schemas = schema.allOf as OpenAPIV3.SchemaObject[];
   for (const subSchema of schemas) {
     if (!isSchemaObject(subSchema)) continue;
-    const errors = validateSubSchema(subSchema, args);
-    ctx.errors.push(...errors);
+    const { issues } = validateSubSchema(subSchema, args);
+    ctx.addIssues(issues);
   }
 }
 
@@ -92,12 +94,14 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
     return;
   }
 
-  const branchErrors: ValidationError[][] = [];
+  const branchErrors: ValidationIssue[][] = [];
 
   for (const subSchema of schemas) {
     if (!isSchemaObject(subSchema)) continue;
-    const errors = validateSubSchema(subSchema, args);
+    const { issues } = validateSubSchema(subSchema, args);
+    const errors = issues.filter((i) => i.severity === 'error');
     if (errors.length === 0) {
+      ctx.addIssues(issues.filter((i) => i.severity === 'warning'));
       return;
     }
     branchErrors.push(errors);
@@ -122,13 +126,16 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
   }
 
   let passedCount = 0;
-  const branchErrors: ValidationError[][] = [];
+  const branchErrors: ValidationIssue[][] = [];
+  let successfulBranchWarnings: ValidationIssue[] = [];
 
   for (const subSchema of schemas) {
     if (!isSchemaObject(subSchema)) continue;
-    const errors = validateSubSchema(subSchema, args);
+    const { issues } = validateSubSchema(subSchema, args);
+    const errors = issues.filter((i) => i.severity === 'error');
     if (errors.length === 0) {
       passedCount++;
+      successfulBranchWarnings = issues.filter((i) => i.severity === 'warning');
       if (passedCount > 1) {
         break;
       }
@@ -138,6 +145,7 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
   }
 
   if (passedCount === 1) {
+    ctx.addIssues(successfulBranchWarnings);
     return;
   }
 

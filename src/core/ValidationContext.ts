@@ -6,14 +6,17 @@ export interface PathNode {
   readonly parent: PathNode | null;
 }
 
-export interface ValidationError {
+export type IssueSeverity = 'error' | 'warning';
+
+export interface ValidationIssue {
   path: string;
   message: string;
-  branches?: ValidationError[][];
+  severity: IssueSeverity;
+  branches?: ValidationIssue[][];
 }
 
 export class ValidationContext {
-  public readonly errors: ValidationError[] = [];
+  public readonly issues: ValidationIssue[];
   public readonly visited: Set<object>;
   public currentPath: PathNode | null = null;
   private readonly activeObjectPolymorphism: WeakMap<
@@ -26,7 +29,8 @@ export class ValidationContext {
     public readonly spec?: OpenAPIV3.Document,
     visited?: Set<object>,
     activeObjectPolymorphism?: WeakMap<object, Set<OpenAPIV3.SchemaObject>>,
-    activePrimitivePolymorphism?: Set<OpenAPIV3.SchemaObject>
+    activePrimitivePolymorphism?: Set<OpenAPIV3.SchemaObject>,
+    issues?: ValidationIssue[]
   ) {
     this.visited = visited || new Set<object>();
     this.activeObjectPolymorphism =
@@ -34,6 +38,15 @@ export class ValidationContext {
       new WeakMap<object, Set<OpenAPIV3.SchemaObject>>();
     this.activePrimitivePolymorphism =
       activePrimitivePolymorphism || new Set<OpenAPIV3.SchemaObject>();
+    this.issues = issues || [];
+  }
+
+  get errors(): readonly ValidationIssue[] {
+    return this.issues.filter((i) => i.severity === 'error');
+  }
+
+  get warnings(): readonly ValidationIssue[] {
+    return this.issues.filter((i) => i.severity === 'warning');
   }
 
   createChildContext(): ValidationContext {
@@ -47,36 +60,34 @@ export class ValidationContext {
     return child;
   }
 
-  public trackPolymorphism(
-    value: unknown,
-    schema: OpenAPIV3.SchemaObject,
-    fn: () => void
-  ): void {
+  private getActiveSchemasSet(value: unknown): Set<OpenAPIV3.SchemaObject> {
     if (isPlainObject(value) || Array.isArray(value)) {
       let active = this.activeObjectPolymorphism.get(value);
       if (!active) {
         active = new Set<OpenAPIV3.SchemaObject>();
         this.activeObjectPolymorphism.set(value, active);
       }
-      if (active.has(schema)) {
-        return;
-      }
-      active.add(schema);
-      try {
-        fn();
-      } finally {
-        active.delete(schema);
-      }
-    } else {
-      if (this.activePrimitivePolymorphism.has(schema)) {
-        return;
-      }
-      this.activePrimitivePolymorphism.add(schema);
-      try {
-        fn();
-      } finally {
-        this.activePrimitivePolymorphism.delete(schema);
-      }
+      return active;
+    }
+    return this.activePrimitivePolymorphism;
+  }
+
+  public trackPolymorphism(
+    value: unknown,
+    schema: OpenAPIV3.SchemaObject,
+    fn: () => void
+  ): void {
+    const active = this.getActiveSchemasSet(value);
+
+    if (active.has(schema)) {
+      return;
+    }
+
+    active.add(schema);
+    try {
+      fn();
+    } finally {
+      active.delete(schema);
     }
   }
 
@@ -113,12 +124,48 @@ export class ValidationContext {
     return result;
   }
 
-  addError(message: string, branches?: ValidationError[][]): void {
-    this.errors.push({
-      path: this.formatPath(),
+  private hasIssue(
+    issue: Pick<ValidationIssue, 'path' | 'message' | 'severity'>
+  ): boolean {
+    return this.issues.some(
+      (existing) =>
+        existing.path === issue.path &&
+        existing.message === issue.message &&
+        existing.severity === issue.severity
+    );
+  }
+
+  addIssue(
+    message: string,
+    severity: IssueSeverity,
+    branches?: ValidationIssue[][]
+  ): void {
+    const path = this.formatPath();
+    const newIssue: ValidationIssue = {
+      path,
       message,
+      severity,
       ...(branches ? { branches } : {})
-    });
+    };
+    if (!this.hasIssue(newIssue)) {
+      this.issues.push(newIssue);
+    }
+  }
+
+  addError(message: string, branches?: ValidationIssue[][]): void {
+    this.addIssue(message, 'error', branches);
+  }
+
+  addWarning(message: string): void {
+    this.addIssue(message, 'warning');
+  }
+
+  addIssues(newIssues: ValidationIssue[]): void {
+    for (const issue of newIssues) {
+      if (!this.hasIssue(issue)) {
+        this.issues.push(issue);
+      }
+    }
   }
 
   hasErrors(): boolean {

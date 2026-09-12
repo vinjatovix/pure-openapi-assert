@@ -11,7 +11,7 @@ import {
 import { contextMother } from '../../helpers/contextMother.js';
 import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 
-describe('Validators discriminator.ts (Unit)', () => {
+describe('validators/discriminator', () => {
   describe('resolveDiscriminatorSchema', () => {
     const dogSchema = new SchemaBuilder()
       .type('object')

@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  isJson,
   isPlainObject,
   isPrimitive,
-  isSchemaObject
+  isSchemaObject,
+  isTextContentType,
+  normalizeMediaType
 } from '../../../src/core/utils.js';
 
-describe('core/utils (Unit)', () => {
+describe('core/utils', () => {
   describe('isPlainObject', () => {
     it('should return true for valid plain objects', () => {
       expect(isPlainObject({})).toBe(true);
@@ -57,6 +60,52 @@ describe('core/utils (Unit)', () => {
       expect(isSchemaObject('not-an-object')).toBe(false);
       expect(isSchemaObject([])).toBe(false);
       expect(isSchemaObject(null)).toBe(false);
+    });
+  });
+
+  describe('normalizeMediaType', () => {
+    it('should strip parameters and convert to lowercase', () => {
+      expect(normalizeMediaType('application/JSON; charset=utf-8')).toBe(
+        'application/json'
+      );
+      expect(normalizeMediaType('TEXT/html')).toBe('text/html');
+    });
+
+    it('should handle empty or malformed inputs safely', () => {
+      expect(normalizeMediaType('')).toBe('');
+      expect(normalizeMediaType(';charset=utf-8')).toBe('');
+    });
+  });
+
+  describe('isJson', () => {
+    it('should return true for application/json and suffix-based json formats', () => {
+      expect(isJson('application/json')).toBe(true);
+      expect(isJson('application/json; charset=utf-8')).toBe(true);
+      expect(isJson('application/vnd.api+json')).toBe(true);
+      expect(isJson('application/ld+json')).toBe(true);
+      expect(isJson('APPLICATION/JSON')).toBe(true);
+    });
+
+    it('should return false for non-json formats', () => {
+      expect(isJson('text/plain')).toBe(false);
+      expect(isJson('application/xml')).toBe(false);
+      expect(isJson('image/png')).toBe(false);
+    });
+  });
+
+  describe('isTextContentType', () => {
+    it('should return true for text and common text-based payloads', () => {
+      expect(isTextContentType('text/html')).toBe(true);
+      expect(isTextContentType('text/plain; charset=utf-8')).toBe(true);
+      expect(isTextContentType('application/xml')).toBe(true);
+      expect(isTextContentType('application/xhtml+xml')).toBe(true);
+      expect(isTextContentType('application/csv')).toBe(true);
+    });
+
+    it('should return false for binary formats and json', () => {
+      expect(isTextContentType('application/json')).toBe(false);
+      expect(isTextContentType('image/png')).toBe(false);
+      expect(isTextContentType('application/octet-stream')).toBe(false);
     });
   });
 });

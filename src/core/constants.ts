@@ -33,3 +33,9 @@ export const UUID_REGEX =
 // JSON Pointer (RFC 6901) escape sequences
 export const JSON_POINTER_SLASH_REGEX = /~1/g;
 export const JSON_POINTER_TILDE_REGEX = /~0/g;
+
+// Routing and Wildcard matching regular expressions
+export const REGEX_ESCAPE_CHARS_REGEX: RegExp = /[.*+?^${}()|[\]\\]/g;
+export const OPENAPI_PATH_PARAM_REGEX: RegExp = /\\{[^\\}]+\\}/g;
+export const ESCAPED_WILDCARD_REGEX: RegExp = /\\\*/g;
+export const TRAILING_SLASHES_REGEX: RegExp = /\/+$/;

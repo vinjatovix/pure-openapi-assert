@@ -21,6 +21,11 @@ export class DocumentBuilder {
     return this;
   }
 
+  withPaths(paths: OpenAPIV3.PathsObject): this {
+    this.doc.paths = { ...this.doc.paths, ...paths };
+    return this;
+  }
+
   build(): OpenAPIV3.Document {
     return this.doc as OpenAPIV3.Document;
   }

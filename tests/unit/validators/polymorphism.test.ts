@@ -13,7 +13,7 @@ import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 import { ValidationContextBuilder } from '../../helpers/ValidationContextBuilder.js';
 
-describe('Validators polymorphism.ts (Unit)', () => {
+describe('validators/polymorphism', () => {
   it('should return early from checkPolymorphism if no polymorphism properties are present', () => {
     const ctx = new ValidationContextBuilder().build();
     checkPolymorphism({

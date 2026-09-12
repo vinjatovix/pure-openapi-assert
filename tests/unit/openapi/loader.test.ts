@@ -11,7 +11,7 @@ vi.mock('@apidevtools/swagger-parser', () => {
   };
 });
 
-describe('loader.ts unit tests', () => {
+describe('openapi/loader', () => {
   it('should throw an error if the spec is null', async () => {
     vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce(
       null as unknown as OpenAPIV3.Document
