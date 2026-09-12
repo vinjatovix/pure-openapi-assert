@@ -9,7 +9,7 @@ import {
 import { type ValidationContext } from '../core/ValidationContext.js';
 import { type ValidationArgs } from './args.js';
 
-export function validateMinBigIntConstraint(args: ValidationArgs): void {
+function validateMinBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   const valueStr = value as string;
 
@@ -35,7 +35,7 @@ export function validateMinBigIntConstraint(args: ValidationArgs): void {
   }
 }
 
-export function validateMinNumberConstraint(args: ValidationArgs): void {
+function validateMinNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   if (schema.minimum === undefined) {
     return;
@@ -61,7 +61,7 @@ export function validateMinConstraint(args: ValidationArgs): void {
   }
 }
 
-export function validateMaxBigIntConstraint(args: ValidationArgs): void {
+function validateMaxBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   const valueStr = value as string;
 
@@ -87,7 +87,7 @@ export function validateMaxBigIntConstraint(args: ValidationArgs): void {
   }
 }
 
-export function validateMaxNumberConstraint(args: ValidationArgs): void {
+function validateMaxNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   if (schema.maximum === undefined) {
     return;
@@ -143,7 +143,7 @@ function resolveBigIntMultiple(
   }
 }
 
-export function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
+function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   const valueStr = value as string;
 
@@ -253,7 +253,7 @@ function isMultipleOfDecimal(valNum: number, multipleOfNum: number): boolean {
   return valInt % multipleInt === 0;
 }
 
-export function validateMultipleOfNumberConstraint(args: ValidationArgs): void {
+function validateMultipleOfNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   const multipleOfRaw = schema.multipleOf;
   if (multipleOfRaw === undefined) {
@@ -292,7 +292,7 @@ export function validateMultipleOfConstraint(args: ValidationArgs): void {
   }
 }
 
-export function validateInt32(args: ValidationArgs): void {
+function validateInt32(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (typeof value === 'number') {
     if (!Number.isInteger(value) || value < INT32_MIN || value > INT32_MAX) {
@@ -324,7 +324,7 @@ function validateInt64String(value: string, ctx: ValidationContext): void {
   }
 }
 
-export function validateInt64(args: ValidationArgs): void {
+function validateInt64(args: ValidationArgs): void {
   const { value, ctx } = args;
 
   if (typeof value === 'number') {
@@ -340,7 +340,7 @@ export function validateInt64(args: ValidationArgs): void {
   ctx.addError(`Expected 64-bit integer, received ${typeof value}`);
 }
 
-export function validateFloat(args: ValidationArgs): void {
+function validateFloat(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (typeof value !== 'number') {
     ctx.addError(`Expected 32-bit float, received ${typeof value}`);
@@ -353,7 +353,7 @@ export function validateFloat(args: ValidationArgs): void {
   }
 }
 
-export function validateDouble(args: ValidationArgs): void {
+function validateDouble(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (
     typeof value !== 'number' ||

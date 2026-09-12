@@ -2,16 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 import { validateShape } from '../../../src/validators/shape.js';
 import {
-  validateInt64,
-  validateFloat,
-  validateDouble,
-  validateMinNumberConstraint,
-  validateMaxNumberConstraint,
-  validateMinBigIntConstraint,
-  validateMaxBigIntConstraint,
-  validateMultipleOfBigIntConstraint,
-  validateMultipleOfNumberConstraint,
-  validateMultipleOfConstraint
+  validateMinConstraint,
+  validateMaxConstraint,
+  validateMultipleOfConstraint,
+  validateNumberFormatConstraint,
+  validateNumberConstraints
 } from '../../../src/validators/number.js';
 
 import {
@@ -29,9 +24,9 @@ describe('Validators number (Unit)', () => {
     ctx = contextMother.empty();
   });
 
-  describe('validateInt64, validateFloat, and validateDouble formats', () => {
+  describe('validateNumberFormatConstraint formats', () => {
     it('should trigger validateInt64 non-number type checks', () => {
-      validateInt64({
+      validateNumberFormatConstraint({
         value: true,
         schema: schemaMother.int64(),
         ctx,
@@ -45,7 +40,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should trigger validateInt64 with non-integer string format failure', () => {
-      validateInt64({
+      validateNumberFormatConstraint({
         value: 'not-a-valid-bigint-string',
         schema: schemaMother.int64(),
         ctx,
@@ -59,7 +54,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should trigger validateFloat non-number type checks', () => {
-      validateFloat({
+      validateNumberFormatConstraint({
         value: 'not-a-number',
         schema: schemaMother.float(),
         ctx,
@@ -70,7 +65,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should trigger validateDouble non-number type checks', () => {
-      validateDouble({
+      validateNumberFormatConstraint({
         value: 'not-a-number',
         schema: schemaMother.double(),
         ctx,
@@ -84,9 +79,9 @@ describe('Validators number (Unit)', () => {
     });
   });
 
-  describe('validateMinNumberConstraint and validateMaxNumberConstraint', () => {
-    it('should return early from validateMinNumberConstraint if minimum is missing', () => {
-      validateMinNumberConstraint({
+  describe('validateNumberConstraints bounds checks', () => {
+    it('should return early if minimum is missing', () => {
+      validateNumberConstraints({
         value: 10,
         schema: schemaMother.empty(),
         ctx,
@@ -96,12 +91,12 @@ describe('Validators number (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('should return early from validateMinNumberConstraint if minimum is explicitly undefined (JS consumer)', () => {
+    it('should return early if minimum is explicitly undefined (JS consumer)', () => {
       const schema = new SchemaBuilder()
         .minimum(undefined as unknown as number)
         .build();
 
-      validateMinNumberConstraint({
+      validateNumberConstraints({
         value: 10,
         schema,
         ctx,
@@ -111,8 +106,8 @@ describe('Validators number (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('should return early from validateMaxNumberConstraint if maximum is missing', () => {
-      validateMaxNumberConstraint({
+    it('should return early if maximum is missing', () => {
+      validateNumberConstraints({
         value: 10,
         schema: schemaMother.empty(),
         ctx,
@@ -122,12 +117,12 @@ describe('Validators number (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('should return early from validateMaxNumberConstraint if maximum is explicitly undefined (JS consumer)', () => {
+    it('should return early if maximum is explicitly undefined (JS consumer)', () => {
       const schema = new SchemaBuilder()
         .maximum(undefined as unknown as number)
         .build();
 
-      validateMaxNumberConstraint({
+      validateNumberConstraints({
         value: 10,
         schema,
         ctx,
@@ -138,9 +133,9 @@ describe('Validators number (Unit)', () => {
     });
   });
 
-  describe('validateMultipleOfNumberConstraint base precision validation', () => {
+  describe('MultipleOf base precision validation', () => {
     it('should pass when value is a high-precision decimal multiple of standard floating point step', () => {
-      validateMultipleOfNumberConstraint({
+      validateNumberConstraints({
         value: 0.000003,
         schema: new SchemaBuilder().multipleOf(0.000001).build(),
         ctx,
@@ -150,7 +145,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should fail when value is not a high-precision decimal multiple of standard floating point step', () => {
-      validateMultipleOfNumberConstraint({
+      validateNumberConstraints({
         value: 0.0000035,
         schema: new SchemaBuilder().multipleOf(0.000001).build(),
         ctx,
@@ -160,7 +155,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should pass when value is in scientific notation and is a valid multiple of scientific step', () => {
-      validateMultipleOfNumberConstraint({
+      validateNumberConstraints({
         value: 3e-7,
         schema: new SchemaBuilder().multipleOf(1e-7).build(),
         ctx,
@@ -170,7 +165,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should pass when value is decimal scientific notation and is a valid multiple of decimal scientific step', () => {
-      validateMultipleOfNumberConstraint({
+      validateNumberConstraints({
         value: 4.5e-7,
         schema: new SchemaBuilder().multipleOf(1.5e-7).build(),
         ctx,
@@ -180,7 +175,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should pass when value is in positive scientific notation and is a valid multiple of positive scientific step', () => {
-      validateMultipleOfNumberConstraint({
+      validateNumberConstraints({
         value: 1e20,
         schema: new SchemaBuilder().multipleOf(1e18).build(),
         ctx,
@@ -189,10 +184,10 @@ describe('Validators number (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('validateMultipleOfNumberConstraint should fast path integers', () => {
+    it('should fast path integers', () => {
       const schema = new SchemaBuilder().type('number').multipleOf(5).build();
 
-      validateMultipleOfNumberConstraint({
+      validateNumberConstraints({
         value: 12,
         schema,
         ctx,
@@ -215,9 +210,7 @@ describe('Validators number (Unit)', () => {
       const key = type === 'min' ? 'minimum' : 'maximum';
       const exclKey = type === 'min' ? 'exclusiveMinimum' : 'exclusiveMaximum';
       const validateFn =
-        type === 'min'
-          ? validateMinBigIntConstraint
-          : validateMaxBigIntConstraint;
+        type === 'min' ? validateMinConstraint : validateMaxConstraint;
 
       const overrides: Partial<OpenAPIV3.SchemaObject> = { [key]: limit };
       if (exclusive !== undefined) overrides[exclKey] = exclusive;
@@ -239,7 +232,7 @@ describe('Validators number (Unit)', () => {
 
     const checkMultBigInt = (value: string, multipleOf: number) => {
       const testCtx = contextMother.empty();
-      validateMultipleOfBigIntConstraint({
+      validateMultipleOfConstraint({
         value,
         schema: schemaMother.int64({ multipleOf }),
         ctx: testCtx,
@@ -250,7 +243,7 @@ describe('Validators number (Unit)', () => {
 
     describe('Decimal format limits on BigInt', () => {
       it('should pass when exclusiveMinimum is true and value is greater than decimal minimum limit', () => {
-        validateMinBigIntConstraint({
+        validateMinConstraint({
           value: '2',
           schema: new SchemaBuilder()
             .type('string')
@@ -265,7 +258,7 @@ describe('Validators number (Unit)', () => {
       });
 
       it('should fail when exclusiveMinimum is true and value is equal to decimal minimum limit', () => {
-        validateMinBigIntConstraint({
+        validateMinConstraint({
           value: '1',
           schema: new SchemaBuilder()
             .type('string')
@@ -283,7 +276,7 @@ describe('Validators number (Unit)', () => {
       });
 
       it('should pass when exclusiveMaximum is true and value is less than decimal maximum limit', () => {
-        validateMaxBigIntConstraint({
+        validateMaxConstraint({
           value: '1',
           schema: new SchemaBuilder()
             .type('string')
@@ -298,7 +291,7 @@ describe('Validators number (Unit)', () => {
       });
 
       it('should fail when exclusiveMaximum is true and value is equal to decimal maximum limit', () => {
-        validateMaxBigIntConstraint({
+        validateMaxConstraint({
           value: '2',
           schema: new SchemaBuilder()
             .type('string')
@@ -327,7 +320,7 @@ describe('Validators number (Unit)', () => {
       { value: '2', limit: 1.5, excl: false, shouldPass: true },
       { value: '2', limit: 1.5, excl: true, shouldPass: true }
     ])(
-      'validateMinBigIntConstraint fractional minimum: value=$value, min=$limit, exclusive=$excl',
+      'validateMinConstraint fractional minimum: value=$value, min=$limit, exclusive=$excl',
       ({ value, limit, excl, shouldPass, expectedErr }) => {
         const testCtx = checkMinBigInt(value, limit, excl);
         if (shouldPass) assertValid(testCtx);
@@ -346,7 +339,7 @@ describe('Validators number (Unit)', () => {
       { value: '2', limit: 2.5, excl: false, shouldPass: true },
       { value: '2', limit: 2.5, excl: true, shouldPass: true }
     ])(
-      'validateMaxBigIntConstraint fractional maximum: value=$value, max=$limit, exclusive=$excl',
+      'validateMaxConstraint fractional maximum: value=$value, max=$limit, exclusive=$excl',
       ({ value, limit, excl, shouldPass, expectedErr }) => {
         const testCtx = checkMaxBigInt(value, limit, excl);
         if (shouldPass) assertValid(testCtx);
@@ -363,7 +356,7 @@ describe('Validators number (Unit)', () => {
       },
       { value: '5', multipleOf: 2.5, shouldPass: true }
     ])(
-      'validateMultipleOfBigIntConstraint: value=$value, multipleOf=$multipleOf',
+      'validateMultipleOfConstraint multipleOf: value=$value, multipleOf=$multipleOf',
       ({ value, multipleOf, shouldPass, expectedErr }) => {
         const testCtx = checkMultBigInt(value, multipleOf);
         if (shouldPass) assertValid(testCtx);
@@ -378,7 +371,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should ignore empty string minimum bound gracefully without treating it as 0', () => {
-      validateMinBigIntConstraint({
+      validateMinConstraint({
         value: '-10',
         schema: new SchemaBuilder()
           .type('string')
@@ -392,7 +385,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should ignore empty string maximum bound gracefully without treating it as 0', () => {
-      validateMaxBigIntConstraint({
+      validateMaxConstraint({
         value: '10',
         schema: new SchemaBuilder()
           .type('string')
@@ -410,7 +403,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should handle fractional bounds that parse as integers (e.g. "10.0")', () => {
-      validateMinBigIntConstraint({
+      validateMinConstraint({
         value: '9',
         schema: new SchemaBuilder()
           .type('string')
@@ -432,7 +425,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should return undefined if bound parses to NaN', () => {
-      validateMinBigIntConstraint({
+      validateMinConstraint({
         value: '10',
         schema: new SchemaBuilder()
           .type('string')
@@ -445,11 +438,11 @@ describe('Validators number (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('should return early on invalid integer strings in validateMinBigIntConstraint', () => {
+    it('should return early on invalid integer strings in minimum validations', () => {
       assertValid(checkMinBigInt('abc', 10));
     });
 
-    it('should return early on invalid integer strings in validateMaxBigIntConstraint', () => {
+    it('should return early on invalid integer strings in maximum validations', () => {
       assertValid(checkMaxBigInt('abc', 10));
     });
 
@@ -471,7 +464,7 @@ describe('Validators number (Unit)', () => {
           expectedErr: 'is less than or equal to minimum 10.5'
         }
       ])(
-        'validateMinBigIntConstraint: value=$value, min=$min, excl=$excl',
+        'validateMinConstraint bounds: value=$value, min=$min, excl=$excl',
         ({ value, min, excl, shouldPass, expectedErr }) => {
           const testCtx = checkMinBigInt(value, min, excl);
           if (shouldPass) assertValid(testCtx);
@@ -496,7 +489,7 @@ describe('Validators number (Unit)', () => {
           expectedErr: 'is greater than or equal to maximum 9.5'
         }
       ])(
-        'validateMaxBigIntConstraint: value=$value, max=$max, excl=$excl',
+        'validateMaxConstraint bounds: value=$value, max=$max, excl=$excl',
         ({ value, max, excl, shouldPass, expectedErr }) => {
           const testCtx = checkMaxBigInt(value, max, excl);
           if (shouldPass) assertValid(testCtx);
@@ -505,11 +498,11 @@ describe('Validators number (Unit)', () => {
       );
     });
 
-    it('should ignore validation if value is not a valid integer string in validateMultipleOfBigIntConstraint', () => {
+    it('should ignore validation if value is not a valid integer string in validateMultipleOfConstraint', () => {
       assertValid(checkMultBigInt('abc', 5));
     });
 
-    describe('validateMultipleOfBigIntConstraint handling', () => {
+    describe('validateMultipleOfConstraint handling', () => {
       it.each([
         { value: '10', mult: undefined },
         { value: '10', mult: 0 },
@@ -522,7 +515,7 @@ describe('Validators number (Unit)', () => {
 
     describe('parseBigIntBound handling', () => {
       it('should return undefined when bound is null', () => {
-        validateMinBigIntConstraint({
+        validateMinConstraint({
           value: '-10',
           schema: new SchemaBuilder()
             .type('string')
@@ -536,7 +529,7 @@ describe('Validators number (Unit)', () => {
       });
 
       it('should return undefined when bound is an unsupported object type', () => {
-        validateMinBigIntConstraint({
+        validateMinConstraint({
           value: '-10',
           schema: new SchemaBuilder()
             .type('string')
@@ -551,7 +544,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should support schema bound defined directly as bigint', () => {
-      validateMinBigIntConstraint({
+      validateMinConstraint({
         value: '9',
         schema: new SchemaBuilder()
           .type('string')
@@ -565,7 +558,7 @@ describe('Validators number (Unit)', () => {
     });
 
     it('should parse non-empty string bounds successfully in parseBigIntBound', () => {
-      validateMinBigIntConstraint({
+      validateMinConstraint({
         value: '9',
         schema: new SchemaBuilder()
           .type('string')
@@ -592,8 +585,8 @@ describe('Validators number (Unit)', () => {
       assertValid(ctx);
     });
 
-    it('should return early in validateMultipleOfNumberConstraint if multipleOf is undefined', () => {
-      validateMultipleOfNumberConstraint({
+    it('should return early if multipleOf is undefined', () => {
+      validateMultipleOfConstraint({
         value: 10,
         schema: schemaMother.empty(),
         ctx,
@@ -604,10 +597,10 @@ describe('Validators number (Unit)', () => {
   });
 
   describe('Robustness tests for multipleOf constraints', () => {
-    describe('validateMultipleOfNumberConstraint robustness', () => {
+    describe('validateMultipleOfConstraint robustness', () => {
       it('should gracefully ignore validation when multipleOf is 0', () => {
         expect(() => {
-          validateMultipleOfNumberConstraint({
+          validateMultipleOfConstraint({
             value: 10,
             schema: new SchemaBuilder().type('number').multipleOf(0).build(),
             ctx,
@@ -619,7 +612,7 @@ describe('Validators number (Unit)', () => {
 
       it('should gracefully ignore validation when multipleOf is negative', () => {
         expect(() => {
-          validateMultipleOfNumberConstraint({
+          validateMultipleOfConstraint({
             value: 10,
             schema: new SchemaBuilder().type('number').multipleOf(-2).build(),
             ctx,
@@ -631,7 +624,7 @@ describe('Validators number (Unit)', () => {
 
       it('should gracefully ignore validation when multipleOf is non-numeric', () => {
         expect(() => {
-          validateMultipleOfNumberConstraint({
+          validateMultipleOfConstraint({
             value: 10,
             schema: new SchemaBuilder()
               .type('number')
@@ -646,7 +639,7 @@ describe('Validators number (Unit)', () => {
 
       it('should gracefully ignore validation when multipleOf is Infinity', () => {
         expect(() => {
-          validateMultipleOfNumberConstraint({
+          validateMultipleOfConstraint({
             value: 10,
             schema: new SchemaBuilder()
               .type('number')
@@ -661,7 +654,7 @@ describe('Validators number (Unit)', () => {
 
       it('should handle extreme multipliers that overflow to Infinity without throwing', () => {
         expect(() => {
-          validateMultipleOfNumberConstraint({
+          validateMultipleOfConstraint({
             value: 10,
             schema: new SchemaBuilder()
               .type('number')
@@ -676,7 +669,7 @@ describe('Validators number (Unit)', () => {
 
       it('should handle calculations that overflow during rounding without throwing', () => {
         expect(() => {
-          validateMultipleOfNumberConstraint({
+          validateMultipleOfConstraint({
             value: 1.0000000001,
             schema: new SchemaBuilder()
               .type('number')
@@ -688,6 +681,38 @@ describe('Validators number (Unit)', () => {
         }).not.toThrow();
         assertValid(ctx);
       });
+    });
+  });
+
+  describe('Robustness and fallback checks on constraint dispatchers (Copilot Verification)', () => {
+    it('should bypass minimum, maximum, and multipleOf validations inside validateNumberConstraints when the value is a boolean', () => {
+      validateNumberConstraints({
+        value: true,
+        schema: new SchemaBuilder()
+          .minimum(5)
+          .maximum(10)
+          .multipleOf(2)
+          .build(),
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
+    it('should bypass validations inside validateNumberConstraints when the value is a non-int64 string', () => {
+      validateNumberConstraints({
+        value: 'not-int64',
+        schema: new SchemaBuilder()
+          .minimum(5)
+          .maximum(10)
+          .multipleOf(2)
+          .build(),
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
     });
   });
 });

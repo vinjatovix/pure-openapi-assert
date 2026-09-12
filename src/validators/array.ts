@@ -1,7 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types';
-import { type ValidationArgs } from './args.js';
 import { CycleTracker, CYCLE_DETECTED } from '../core/CycleTracker.js';
 import { isPrimitive, isSchemaObject } from '../core/utils.js';
+import { type ValidationArgs } from './args.js';
 
 function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx } = args;
