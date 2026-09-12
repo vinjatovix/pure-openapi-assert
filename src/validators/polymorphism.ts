@@ -1,10 +1,13 @@
 import type { OpenAPIV3 } from 'openapi-types';
-import { ValidationContext } from '../core/ValidationContext.js';
+import {
+  ValidationContext,
+  type ValidationError
+} from '../core/ValidationContext.js';
 import { isPlainObject, isSchemaObject } from '../core/utils.js';
 import { resolveDiscriminatorSchema } from './discriminator.js';
 import { type ValidationArgs } from './types.js';
 
-function formatBranchErrors(branchErrors: string[][]): string {
+function formatBranchErrors(branchErrors: ValidationError[][]): string {
   return branchErrors
     .map((errors, index) => {
       const isLast = index === branchErrors.length - 1;
@@ -12,7 +15,9 @@ function formatBranchErrors(branchErrors: string[][]): string {
         ? `  └─ Branch ${index + 1}:`
         : `  ├─ Branch ${index + 1}:`;
       const prefix = isLast ? '       ' : '  │    ';
-      const formattedErrors = errors.map((e) => `${prefix}${e}`).join('\n');
+      const formattedErrors = errors
+        .map((e) => `${prefix}[${e.path}] ${e.message}`)
+        .join('\n');
       return `${branchLine}\n${formattedErrors}`;
     })
     .join('\n');
@@ -21,7 +26,7 @@ function formatBranchErrors(branchErrors: string[][]): string {
 function validateSubSchema(
   subSchema: OpenAPIV3.SchemaObject,
   args: ValidationArgs<unknown>
-): string[] {
+): ValidationError[] {
   const { value, ctx, validateShape, customFormats } = args;
   let subCtx: ValidationContext | undefined;
 
@@ -87,7 +92,7 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
     return;
   }
 
-  const branchErrors: string[][] = [];
+  const branchErrors: ValidationError[][] = [];
 
   for (const subSchema of schemas) {
     if (!isSchemaObject(subSchema)) continue;
@@ -99,7 +104,7 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
   }
 
   const formatted = formatBranchErrors(branchErrors);
-  ctx.addError(`Failed anyOf:\n${formatted}`);
+  ctx.addError(`Failed anyOf:\n${formatted}`, branchErrors);
 }
 
 function validateOneOf(args: ValidationArgs<unknown>): void {
@@ -117,7 +122,7 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
   }
 
   let passedCount = 0;
-  const branchErrors: string[][] = [];
+  const branchErrors: ValidationError[][] = [];
 
   for (const subSchema of schemas) {
     if (!isSchemaObject(subSchema)) continue;
@@ -138,7 +143,8 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
 
   const formatted = formatBranchErrors(branchErrors);
   ctx.addError(
-    `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`
+    `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`,
+    branchErrors
   );
 }
 
