@@ -4,8 +4,8 @@ import {
   type ValidationError
 } from '../core/ValidationContext.js';
 import { isPlainObject, isSchemaObject } from '../core/utils.js';
+import { type ValidationArgs } from './args.js';
 import { resolveDiscriminatorSchema } from './discriminator.js';
-import { type ValidationArgs } from './types.js';
 
 function formatBranchErrors(branchErrors: ValidationError[][]): string {
   return branchErrors

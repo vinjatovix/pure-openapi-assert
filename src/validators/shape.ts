@@ -1,12 +1,12 @@
+import { type ValidationArgs } from './args.js';
 import { checkPolymorphism } from './polymorphism.js';
 import {
-  type ValidationArgs,
   validateArray,
   validateBaseType,
   validateObject,
   validateConst,
   validateEnum
-} from './types.js';
+} from './type-validators.js';
 
 const validators: Record<string, (args: ValidationArgs) => void> = {
   string: validateBaseType,
