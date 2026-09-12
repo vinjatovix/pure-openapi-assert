@@ -3,14 +3,14 @@ import {
   DEFAULT_CONTENT_TYPE,
   DUMMY_BASE_URL,
   ESCAPED_WILDCARD_REGEX,
-  MAX_CACHE_SIZE,
   OPENAPI_PATH_PARAM_REGEX,
   REGEX_ESCAPE_CHARS_REGEX,
   TRAILING_SLASHES_REGEX
 } from '../core/constants.js';
+import { FIFOCache } from '../core/FIFOCache.js';
 import { isJson, normalizeMediaType } from '../core/utils.js';
 
-const regexCache = new Map<string, RegExp>();
+const regexCache = new FIFOCache<string, RegExp>();
 
 const escapeRegex = (str: string): string =>
   str.replace(REGEX_ESCAPE_CHARS_REGEX, '\\$&');
@@ -23,10 +23,6 @@ function convertOpenApiPathToRegExp(openApiPath: string): RegExp {
   const cached = regexCache.get(cacheKey);
   if (cached) {
     return cached;
-  }
-  if (regexCache.size >= MAX_CACHE_SIZE) {
-    const firstKey = regexCache.keys().next().value;
-    regexCache.delete(firstKey as string);
   }
   const escapedPath = escapeRegex(openApiPath);
   const regexPattern = escapedPath.replace(OPENAPI_PATH_PARAM_REGEX, '[^/]+');
@@ -95,7 +91,7 @@ function getOperation(options: GetOperationOptions): OpenAPIV3.OperationObject {
   throw new Error(`Operation not found: ${method} ${reqPath}`);
 }
 
-const wildcardRegexCache = new Map<string, RegExp>();
+export const wildcardRegexCache = new FIFOCache<string, RegExp>();
 
 function matchWildcard(req: string, declared: string): boolean {
   let rx = wildcardRegexCache.get(declared);
@@ -144,6 +140,17 @@ interface ResolveMediaTypeSchemaOptions {
   status: number;
 }
 
+function getSpecificity(
+  declared: string,
+  normalizedContentType: string
+): number {
+  const norm = normalizeMediaType(declared);
+  if (norm === normalizedContentType) return 1;
+  if (!norm.includes('*')) return 2; // e.g. json alias match
+  if (norm !== '*/*') return 3; // e.g. type/*
+  return 4; // */*
+}
+
 function resolveMediaTypeSchema(options: ResolveMediaTypeSchemaOptions): {
   schema: OpenAPIV3.SchemaObject | null;
   matchedContentType: string;
@@ -157,15 +164,25 @@ function resolveMediaTypeSchema(options: ResolveMediaTypeSchemaOptions): {
   }
 
   const normalizedContentType = normalizeMediaType(contentType);
-  const matchedKey =
-    declaredMediaTypes.find(
-      (declared) => normalizeMediaType(declared) === normalizedContentType
-    ) ??
-    declaredMediaTypes.find((declared) =>
-      isMediaTypeMatch(contentType, declared)
-    );
 
-  if (!matchedKey) {
+  const matches = declaredMediaTypes.filter((declared) =>
+    isMediaTypeMatch(contentType, declared)
+  );
+
+  if (matches.length === 0) {
+    throw new Error(
+      `Content-Type '${contentType}' is not declared for ${method} ${reqPath} ${status}. Declared: ${declaredMediaTypes.join(', ')}`
+    );
+  }
+
+  matches.sort(
+    (a, b) =>
+      getSpecificity(a, normalizedContentType) -
+      getSpecificity(b, normalizedContentType)
+  );
+  const matchedKey = matches[0];
+
+  if (matchedKey === undefined) {
     throw new Error(
       `Content-Type '${contentType}' is not declared for ${method} ${reqPath} ${status}. Declared: ${declaredMediaTypes.join(', ')}`
     );

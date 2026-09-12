@@ -29,16 +29,66 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
 
       const formatTestCases = [
-        { field: 'uuid', value: 'invalid-uuid', format: 'uuid', desc: 'invalid UUIDs' },
-        { field: 'email', value: 'not-an-email', format: 'email', desc: 'invalid emails' },
-        { field: 'date', value: '2026-02-30', format: 'date', desc: 'invalid dates (bad semantic date)' },
-        { field: 'dateTime', value: '2026-09-09T12:00:00', format: 'date-time', desc: 'invalid date-times (missing timezone)' },
-        { field: 'ipv4', value: '999.999.999.999', format: 'ipv4', desc: 'invalid IPv4 addresses' },
-        { field: 'hostname', value: 'invalid_host@', format: 'hostname', desc: 'invalid hostnames' },
-        { field: 'uri', value: 'not-a-valid-uri', format: 'uri', desc: 'invalid URIs' },
-        { field: 'date', value: 'not-a-date', format: 'date', desc: 'completely invalid date formats' },
-        { field: 'date', value: '2026-13-09', format: 'date', desc: 'invalid month in strict date check' },
-        { field: 'date', value: '2026-09-00', format: 'date', desc: 'zero day in strict date check' }
+        {
+          field: 'uuid',
+          value: 'invalid-uuid',
+          format: 'uuid',
+          desc: 'invalid UUIDs'
+        },
+        {
+          field: 'email',
+          value: 'not-an-email',
+          format: 'email',
+          desc: 'invalid emails'
+        },
+        {
+          field: 'date',
+          value: '2026-02-30',
+          format: 'date',
+          desc: 'invalid dates (bad semantic date)'
+        },
+        {
+          field: 'dateTime',
+          value: '2026-09-09T12:00:00',
+          format: 'date-time',
+          desc: 'invalid date-times (missing timezone)'
+        },
+        {
+          field: 'ipv4',
+          value: '999.999.999.999',
+          format: 'ipv4',
+          desc: 'invalid IPv4 addresses'
+        },
+        {
+          field: 'hostname',
+          value: 'invalid_host@',
+          format: 'hostname',
+          desc: 'invalid hostnames'
+        },
+        {
+          field: 'uri',
+          value: 'not-a-valid-uri',
+          format: 'uri',
+          desc: 'invalid URIs'
+        },
+        {
+          field: 'date',
+          value: 'not-a-date',
+          format: 'date',
+          desc: 'completely invalid date formats'
+        },
+        {
+          field: 'date',
+          value: '2026-13-09',
+          format: 'date',
+          desc: 'invalid month in strict date check'
+        },
+        {
+          field: 'date',
+          value: '2026-09-00',
+          format: 'date',
+          desc: 'zero day in strict date check'
+        }
       ];
 
       it.each(formatTestCases)(
@@ -106,17 +156,76 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
 
       const extendedFormatTestCases = [
-        { field: 'ipv6', value: '2001:db8::invalid', expectedError: "Expected string format 'ipv6', received '2001:db8::invalid'", desc: 'invalid IPv6 addresses' },
-        { field: 'byte', value: 'Not-Base64!!!', expectedError: "Expected string format 'byte', received 'Not-Base64!!!'", desc: 'invalid Base64 byte strings' },
-        { field: 'int32', value: 2147483648, expectedError: 'Expected 32-bit integer, received 2147483648', desc: 'invalid int32 out of range' },
-        { field: 'int64', value: '9223372036854775808', expectedError: 'Value 9223372036854775808 exceeds 64-bit integer limits', desc: 'invalid int64 out of range (string)' },
-        { field: 'float', value: 4e38, expectedError: 'Expected 32-bit float, received 4e+38', desc: 'invalid float exceeding 32-bit float limits' },
-        { field: 'int32', value: 'not-a-number', expectedError: 'Expected integer, received string', desc: 'non-number for int32' },
-        { field: 'int64', value: true, expectedError: 'Expected integer, received boolean', desc: 'non-number/non-string for int64' },
-        { field: 'float', value: 'not-a-number', expectedError: 'Expected number, received string', desc: 'non-number for float' },
-        { field: 'double', value: 'not-a-number', expectedError: 'Expected number, received string', desc: 'non-number for double' },
-        { field: 'int64', value: 'not-a-valid-int', expectedError: 'Expected integer, received string', desc: 'invalid string for int64' },
-        { field: 'int64', value: '-9223372036854775809', expectedError: 'Value -9223372036854775809 exceeds 64-bit integer limits', desc: 'strict int64 bounds violating minimum' }
+        {
+          field: 'ipv6',
+          value: '2001:db8::invalid',
+          expectedError:
+            "Expected string format 'ipv6', received '2001:db8::invalid'",
+          desc: 'invalid IPv6 addresses'
+        },
+        {
+          field: 'byte',
+          value: 'Not-Base64!!!',
+          expectedError:
+            "Expected string format 'byte', received 'Not-Base64!!!'",
+          desc: 'invalid Base64 byte strings'
+        },
+        {
+          field: 'int32',
+          value: 2147483648,
+          expectedError: 'Expected 32-bit integer, received 2147483648',
+          desc: 'invalid int32 out of range'
+        },
+        {
+          field: 'int64',
+          value: '9223372036854775808',
+          expectedError:
+            'Value 9223372036854775808 exceeds 64-bit integer limits',
+          desc: 'invalid int64 out of range (string)'
+        },
+        {
+          field: 'float',
+          value: 4e38,
+          expectedError: 'Expected 32-bit float, received 4e+38',
+          desc: 'invalid float exceeding 32-bit float limits'
+        },
+        {
+          field: 'int32',
+          value: 'not-a-number',
+          expectedError: 'Expected integer, received string',
+          desc: 'non-number for int32'
+        },
+        {
+          field: 'int64',
+          value: true,
+          expectedError: 'Expected integer, received boolean',
+          desc: 'non-number/non-string for int64'
+        },
+        {
+          field: 'float',
+          value: 'not-a-number',
+          expectedError: 'Expected number, received string',
+          desc: 'non-number for float'
+        },
+        {
+          field: 'double',
+          value: 'not-a-number',
+          expectedError: 'Expected number, received string',
+          desc: 'non-number for double'
+        },
+        {
+          field: 'int64',
+          value: 'not-a-valid-int',
+          expectedError: 'Expected integer, received string',
+          desc: 'invalid string for int64'
+        },
+        {
+          field: 'int64',
+          value: '-9223372036854775809',
+          expectedError:
+            'Value -9223372036854775809 exceeds 64-bit integer limits',
+          desc: 'strict int64 bounds violating minimum'
+        }
       ];
 
       it.each(extendedFormatTestCases)(
@@ -999,8 +1108,16 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
 
       const constRejectionCases = [
-        { body: { status: 'failed', code: 200 }, error: 'Expected exactly "success", received "failed"', desc: 'const constraint violated (string)' },
-        { body: { status: 'success', code: 500 }, error: 'Expected exactly 200, received 500', desc: 'const constraint violated (integer)' }
+        {
+          body: { status: 'failed', code: 200 },
+          error: 'Expected exactly "success", received "failed"',
+          desc: 'const constraint violated (string)'
+        },
+        {
+          body: { status: 'success', code: 500 },
+          error: 'Expected exactly 200, received 500',
+          desc: 'const constraint violated (integer)'
+        }
       ];
 
       it.each(constRejectionCases)(
@@ -1031,8 +1148,17 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
 
       const enumRejectionCases = [
-        { body: { role: 'invalid-role', level: 1 }, error: 'Expected one of [admin, user, guest], received "invalid-role"', desc: 'enum constraint violated (string)' },
-        { body: { role: 'admin', level: 5 }, error: 'Expected one of [1, 2, 3], received 5', desc: 'enum constraint violated (integer)' }
+        {
+          body: { role: 'invalid-role', level: 1 },
+          error:
+            'Expected one of [admin, user, guest], received "invalid-role"',
+          desc: 'enum constraint violated (string)'
+        },
+        {
+          body: { role: 'admin', level: 5 },
+          error: 'Expected one of [1, 2, 3], received 5',
+          desc: 'enum constraint violated (integer)'
+        }
       ];
 
       it.each(enumRejectionCases)(
@@ -1053,13 +1179,43 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     describe('Numeric Format Constraint Fallbacks (no explicit type in schema)', () => {
       const fallbackTestCases = [
-        { path: '/test/formats/no-type/int32', body: { field: 'not-a-number-string' }, error: 'Expected 32-bit integer, received string', desc: 'int32 format check (string)' },
-        { path: '/test/formats/no-type/int32', body: { field: true }, error: 'Expected 32-bit integer, received boolean', desc: 'int32 format check (boolean)' },
-        { path: '/test/formats/no-type/int64', body: { field: '9223372036854775808' }, error: 'Value 9223372036854775808 exceeds 64-bit integer limits', desc: 'int64 format check (string out of range)' },
-        // eslint-disable-next-line no-loss-of-precision
-        { path: '/test/formats/no-type/int64', body: { field: 9999999999999999 }, error: 'Expected 64-bit integer, received 10000000000000000', desc: 'int64 format check (number out of range)' },
-        { path: '/test/formats/no-type/float', body: { field: 'not-a-number-string' }, error: 'Expected 32-bit float, received string', desc: 'float format check' },
-        { path: '/test/formats/no-type/double', body: { field: 'not-a-number-string' }, error: 'Expected 64-bit float, received not-a-number-string', desc: 'double format check' }
+        {
+          path: '/test/formats/no-type/int32',
+          body: { field: 'not-a-number-string' },
+          error: 'Expected 32-bit integer, received string',
+          desc: 'int32 format check (string)'
+        },
+        {
+          path: '/test/formats/no-type/int32',
+          body: { field: true },
+          error: 'Expected 32-bit integer, received boolean',
+          desc: 'int32 format check (boolean)'
+        },
+        {
+          path: '/test/formats/no-type/int64',
+          body: { field: '9223372036854775808' },
+          error: 'Value 9223372036854775808 exceeds 64-bit integer limits',
+          desc: 'int64 format check (string out of range)'
+        },
+        {
+          path: '/test/formats/no-type/int64',
+          // eslint-disable-next-line no-loss-of-precision
+          body: { field: 9999999999999999 },
+          error: 'Expected 64-bit integer, received 10000000000000000',
+          desc: 'int64 format check (number out of range)'
+        },
+        {
+          path: '/test/formats/no-type/float',
+          body: { field: 'not-a-number-string' },
+          error: 'Expected 32-bit float, received string',
+          desc: 'float format check'
+        },
+        {
+          path: '/test/formats/no-type/double',
+          body: { field: 'not-a-number-string' },
+          error: 'Expected 64-bit float, received not-a-number-string',
+          desc: 'double format check'
+        }
       ];
 
       it.each(fallbackTestCases)(
@@ -1080,9 +1236,18 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     describe('Robustness Against Malformed Schema Constraints', () => {
       const malformedCases = [
-        { path: '/test/validation/invalid-minimum', desc: 'invalid minimum configuration' },
-        { path: '/test/validation/invalid-maximum', desc: 'invalid maximum configuration' },
-        { path: '/test/validation/invalid-multipleof', desc: 'invalid multipleof configuration' }
+        {
+          path: '/test/validation/invalid-minimum',
+          desc: 'invalid minimum configuration'
+        },
+        {
+          path: '/test/validation/invalid-maximum',
+          desc: 'invalid maximum configuration'
+        },
+        {
+          path: '/test/validation/invalid-multipleof',
+          desc: 'invalid multipleof configuration'
+        }
       ];
 
       it.each(malformedCases)(
@@ -1115,9 +1280,21 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
 
       const bigintRejectionCases = [
-        { value: '5', error: 'Value 5 is less than minimum 10', desc: 'bigint minimum' },
-        { value: '150', error: 'Value 150 is greater than maximum 100', desc: 'bigint maximum' },
-        { value: '23', error: 'Value 23 is not a multiple of 5', desc: 'bigint multipleOf' }
+        {
+          value: '5',
+          error: 'Value 5 is less than minimum 10',
+          desc: 'bigint minimum'
+        },
+        {
+          value: '150',
+          error: 'Value 150 is greater than maximum 100',
+          desc: 'bigint maximum'
+        },
+        {
+          value: '23',
+          error: 'Value 23 is not a multiple of 5',
+          desc: 'bigint multipleOf'
+        }
       ];
 
       it.each(bigintRejectionCases)(
@@ -1506,7 +1683,10 @@ describe('assertResponseMatchesOpenAPI', () => {
           });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            expectedWarning('', "Endpoint 'GET /test/deprecated-route' is deprecated")
+            expectedWarning(
+              '',
+              "Endpoint 'GET /test/deprecated-route' is deprecated"
+            )
           );
         });
 
@@ -1537,7 +1717,10 @@ describe('assertResponseMatchesOpenAPI', () => {
           });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            expectedWarning('', "Endpoint 'GET /test/deprecated-no-content' is deprecated")
+            expectedWarning(
+              '',
+              "Endpoint 'GET /test/deprecated-no-content' is deprecated"
+            )
           );
         });
 
@@ -1574,13 +1757,19 @@ describe('assertResponseMatchesOpenAPI', () => {
 
           // activeDeprecatedProp is in the matching branch (Branch 2), so it should warn
           expect(warnSpy).toHaveBeenCalledWith(
-            expectedWarning('body.poly.activeDeprecatedProp', 'Schema property is deprecated')
+            expectedWarning(
+              'body.poly.activeDeprecatedProp',
+              'Schema property is deprecated'
+            )
           );
 
           // deprecatedProp is in Branch 1 which failed requirements (failField was missing),
           // so its warning should be isolated and discarded.
           expect(warnSpy).not.toHaveBeenCalledWith(
-            expectedWarning('body.poly.deprecatedProp', 'Schema property is deprecated')
+            expectedWarning(
+              'body.poly.deprecatedProp',
+              'Schema property is deprecated'
+            )
           );
         });
       });

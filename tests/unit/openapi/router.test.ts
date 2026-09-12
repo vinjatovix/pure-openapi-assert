@@ -1,7 +1,10 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { describe, expect, it } from 'vitest';
 import { normalizeMediaType } from '../../../src/core/utils.js';
-import { getResponseSchema } from '../../../src/openapi/router.js';
+import {
+  getResponseSchema,
+  wildcardRegexCache
+} from '../../../src/openapi/router.js';
 import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
 
 interface GetTestSchemaOptions {
@@ -177,6 +180,57 @@ describe('openapi/router', () => {
       const result = getTestSchema({ spec, contentType: 'application/json' });
 
       expect(result.matchedContentType).toBe('application/vnd.api+json');
+    });
+
+    it('should prefer exact match over wildcard match regardless of declaration order', () => {
+      const spec = buildSpecWithMediaTypes(['*/*', 'image/*', 'image/png']);
+
+      const result = getTestSchema({ spec, contentType: 'image/png' });
+
+      expect(result.matchedContentType).toBe('image/png');
+    });
+
+    it('should prefer wildcard match over catch-all wildcard regardless of declaration order', () => {
+      const spec = buildSpecWithMediaTypes(['*/*', 'image/*']);
+
+      const result = getTestSchema({ spec, contentType: 'image/png' });
+
+      expect(result.matchedContentType).toBe('image/*');
+    });
+
+    it('should prefer json alias match over catch-all wildcard regardless of declaration order', () => {
+      const spec = buildSpecWithMediaTypes(['*/*', 'application/json']);
+
+      const result = getTestSchema({
+        spec,
+        contentType: 'application/vnd.api+json'
+      });
+
+      expect(result.matchedContentType).toBe('application/json');
+    });
+
+    it('should evict oldest entry in FIFO order from wildcardRegexCache when size exceeds limit', () => {
+      wildcardRegexCache.clear();
+      expect(wildcardRegexCache.size).toBe(0);
+
+      const firstDeclared = 'image/0/*';
+      getTestSchema({
+        spec: buildSpecWithMediaTypes([firstDeclared]),
+        contentType: 'image/0/png'
+      });
+      expect(wildcardRegexCache.has(firstDeclared)).toBe(true);
+
+      const MAX_LIMIT = 1000;
+      for (let i = 1; i <= MAX_LIMIT; i++) {
+        const declared = `image/${i}/*`;
+        getTestSchema({
+          spec: buildSpecWithMediaTypes([declared]),
+          contentType: `image/${i}/png`
+        });
+      }
+
+      expect(wildcardRegexCache.has(firstDeclared)).toBe(false);
+      expect(wildcardRegexCache.size).toBe(MAX_LIMIT);
     });
   });
 
