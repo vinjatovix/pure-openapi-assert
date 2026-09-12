@@ -1,3 +1,4 @@
+import type { OpenAPIV3 } from 'openapi-types';
 import {
   DEFAULT_CONTENT_TYPE,
   HTTP_STATUS_NO_CONTENT
@@ -28,48 +29,66 @@ function isResponseBodyEmpty(body: unknown): boolean {
   return false;
 }
 
-function validateNonJsonBody(contentType: string, body: unknown): void {
-  if (isTextContentType(contentType)) {
-    if (typeof body !== 'string') {
-      throw new Error(
-        `Expected body to be a string for Content-Type '${contentType}', received ${typeof body}`
-      );
-    }
-  } else {
-    if (!Buffer.isBuffer(body)) {
-      throw new Error(
-        `Expected body to be a Buffer for binary Content-Type '${contentType}', received ${typeof body}`
-      );
-    }
-  }
-}
-
 function printWarnings(ctx: ValidationContext): void {
+  if (ctx.warnings.length === 0) return;
+
+  const YELLOW = '\x1b[33m';
+  const RESET = '\x1b[0m';
+  const PREFIX = `${YELLOW}[OpenAPI-Assert] ⚠️  Warning:${RESET}`;
+
   ctx.warnings.forEach((w) => {
-    console.warn(w.path ? `[${w.path}] ${w.message}` : `[] ${w.message}`);
+    const pathStr = w.path ? ` [${w.path}]` : '';
+    console.warn(`${PREFIX}${pathStr} ${w.message}`);
   });
 }
 
-function handleNoContentResponse(body: unknown, ctx: ValidationContext): void {
-  try {
-    if (!isResponseBodyEmpty(body)) {
-      throw new Error(`${HTTP_STATUS_NO_CONTENT} must have empty body`);
-    }
-  } finally {
-    printWarnings(ctx);
-  }
-}
-
-function handleNonJsonResponse(args: {
-  contentType: string;
+function validateResponseBody(args: {
+  status: number;
+  actualContentType: string | undefined;
   body: unknown;
+  schema: OpenAPIV3.SchemaObject | null;
   ctx: ValidationContext;
+  customFormats: Record<string, (val: string) => boolean> | undefined;
+  method: string;
+  reqPath: string;
 }): void {
-  const { contentType, body, ctx } = args;
-  try {
-    validateNonJsonBody(contentType, body);
-  } finally {
-    printWarnings(ctx);
+  const {
+    status,
+    actualContentType,
+    body,
+    schema,
+    ctx,
+    customFormats,
+    method,
+    reqPath
+  } = args;
+
+  if (status === HTTP_STATUS_NO_CONTENT) {
+    if (!isResponseBodyEmpty(body)) {
+      ctx.addError(`${HTTP_STATUS_NO_CONTENT} must have empty body`);
+    }
+  } else if (actualContentType && !isJson(actualContentType)) {
+    if (isTextContentType(actualContentType)) {
+      if (typeof body !== 'string') {
+        ctx.addError(
+          `Expected body to be a string for Content-Type '${actualContentType}', received ${typeof body}`
+        );
+      }
+    } else {
+      if (!Buffer.isBuffer(body)) {
+        ctx.addError(
+          `Expected body to be a Buffer for binary Content-Type '${actualContentType}', received ${typeof body}`
+        );
+      }
+    }
+  } else {
+    if (!schema) {
+      ctx.addError(`No schema found for ${method} ${reqPath} ${status}`);
+    } else {
+      ctx.pushPath('body');
+      validateShape({ value: body, schema, ctx, validateShape, customFormats });
+      ctx.popPath();
+    }
   }
 }
 
@@ -82,7 +101,7 @@ function handleValidationErrors(args: {
   const { ctx, method, reqPath, status } = args;
   if (ctx.hasErrors()) {
     const formattedErrors = ctx.errors.map(
-      (err) => `[${err.path}] ${err.message}`
+      (err) => `[${err.path || 'root'}] ${err.message}`
     );
     throw new Error(
       `OpenAPI contract violation for ${method} ${reqPath} ${status}.\nValidation errors:\n- ${formattedErrors.join('\n- ')}`
@@ -122,23 +141,16 @@ export async function assertResponseMatchesOpenAPI(
     ctx.addWarning(`Endpoint '${method} ${reqPath}' is deprecated`);
   }
 
-  if (status === HTTP_STATUS_NO_CONTENT) {
-    handleNoContentResponse(body, ctx);
-    return;
-  }
-
-  if (actualContentType && !isJson(actualContentType)) {
-    handleNonJsonResponse({ contentType: actualContentType, body, ctx });
-    return;
-  }
-
-  if (!schema) {
-    throw new Error(`No schema found for ${method} ${reqPath} ${status}`);
-  }
-
-  ctx.pushPath('body');
-  validateShape({ value: body, schema, ctx, validateShape, customFormats });
-  ctx.popPath();
+  validateResponseBody({
+    status,
+    actualContentType,
+    body,
+    schema,
+    ctx,
+    customFormats,
+    method,
+    reqPath
+  });
 
   printWarnings(ctx);
 

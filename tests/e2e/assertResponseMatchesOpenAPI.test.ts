@@ -1056,6 +1056,7 @@ describe('assertResponseMatchesOpenAPI', () => {
         { path: '/test/formats/no-type/int32', body: { field: 'not-a-number-string' }, error: 'Expected 32-bit integer, received string', desc: 'int32 format check (string)' },
         { path: '/test/formats/no-type/int32', body: { field: true }, error: 'Expected 32-bit integer, received boolean', desc: 'int32 format check (boolean)' },
         { path: '/test/formats/no-type/int64', body: { field: '9223372036854775808' }, error: 'Value 9223372036854775808 exceeds 64-bit integer limits', desc: 'int64 format check (string out of range)' },
+        // eslint-disable-next-line no-loss-of-precision
         { path: '/test/formats/no-type/int64', body: { field: 9999999999999999 }, error: 'Expected 64-bit integer, received 10000000000000000', desc: 'int64 format check (number out of range)' },
         { path: '/test/formats/no-type/float', body: { field: 'not-a-number-string' }, error: 'Expected 32-bit float, received string', desc: 'float format check' },
         { path: '/test/formats/no-type/double', body: { field: 'not-a-number-string' }, error: 'Expected 64-bit float, received not-a-number-string', desc: 'double format check' }
@@ -1348,6 +1349,12 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     describe('Track 3.2: Content-Type Validation and Deprecations', () => {
       let warnSpy: MockInstance;
+      const expectedWarning = (path: string, message: string) => {
+        const YELLOW = '\x1b[33m';
+        const RESET = '\x1b[0m';
+        const pathStr = path ? ` [${path}]` : '';
+        return `${YELLOW}[OpenAPI-Assert] ⚠️  Warning:${RESET}${pathStr} ${message}`;
+      };
 
       beforeEach(() => {
         warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1499,7 +1506,7 @@ describe('assertResponseMatchesOpenAPI', () => {
           });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            "[] Endpoint 'GET /test/deprecated-route' is deprecated"
+            expectedWarning('', "Endpoint 'GET /test/deprecated-route' is deprecated")
           );
         });
 
@@ -1516,7 +1523,7 @@ describe('assertResponseMatchesOpenAPI', () => {
           });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            '[body.oldField] Schema property is deprecated'
+            expectedWarning('body.oldField', 'Schema property is deprecated')
           );
         });
 
@@ -1530,7 +1537,7 @@ describe('assertResponseMatchesOpenAPI', () => {
           });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            "[] Endpoint 'GET /test/deprecated-no-content' is deprecated"
+            expectedWarning('', "Endpoint 'GET /test/deprecated-no-content' is deprecated")
           );
         });
 
@@ -1567,13 +1574,13 @@ describe('assertResponseMatchesOpenAPI', () => {
 
           // activeDeprecatedProp is in the matching branch (Branch 2), so it should warn
           expect(warnSpy).toHaveBeenCalledWith(
-            '[body.poly.activeDeprecatedProp] Schema property is deprecated'
+            expectedWarning('body.poly.activeDeprecatedProp', 'Schema property is deprecated')
           );
 
           // deprecatedProp is in Branch 1 which failed requirements (failField was missing),
           // so its warning should be isolated and discarded.
           expect(warnSpy).not.toHaveBeenCalledWith(
-            '[body.poly.deprecatedProp] Schema property is deprecated'
+            expectedWarning('body.poly.deprecatedProp', 'Schema property is deprecated')
           );
         });
       });
