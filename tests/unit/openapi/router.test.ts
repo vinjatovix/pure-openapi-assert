@@ -30,20 +30,16 @@ const getTestSchema = ({
 
 describe('openapi/router', () => {
   describe('normalizeMediaType', () => {
-    it('should strip parameters and convert to lowercase for JSON types', () => {
-      const mediaType = 'application/JSON; charset=utf-8';
+    it.each([
+      {
+        input: 'application/JSON; charset=utf-8',
+        expected: 'application/json'
+      },
+      { input: 'TEXT/html', expected: 'text/html' }
+    ])('should normalize media type: $input', ({ input, expected }) => {
+      const result = normalizeMediaType(input);
 
-      const result = normalizeMediaType(mediaType);
-
-      expect(result).toBe('application/json');
-    });
-
-    it('should convert HTML type to lowercase', () => {
-      const mediaType = 'TEXT/html';
-
-      const result = normalizeMediaType(mediaType);
-
-      expect(result).toBe('text/html');
+      expect(result).toBe(expected);
     });
   });
 
@@ -211,16 +207,14 @@ describe('openapi/router', () => {
 
     it('should evict oldest entry in FIFO order from wildcardRegexCache when size exceeds limit', () => {
       wildcardRegexCache.clear();
-      expect(wildcardRegexCache.size).toBe(0);
-
       const firstDeclared = 'image/0/*';
       getTestSchema({
         spec: buildSpecWithMediaTypes([firstDeclared]),
         contentType: 'image/0/png'
       });
-      expect(wildcardRegexCache.has(firstDeclared)).toBe(true);
-
+      const hasBeforeLimit = wildcardRegexCache.has(firstDeclared);
       const MAX_LIMIT = 1000;
+
       for (let i = 1; i <= MAX_LIMIT; i++) {
         const declared = `image/${i}/*`;
         getTestSchema({
@@ -228,9 +222,12 @@ describe('openapi/router', () => {
           contentType: `image/${i}/png`
         });
       }
+      const hasAfterLimit = wildcardRegexCache.has(firstDeclared);
+      const finalSize = wildcardRegexCache.size;
 
-      expect(wildcardRegexCache.has(firstDeclared)).toBe(false);
-      expect(wildcardRegexCache.size).toBe(MAX_LIMIT);
+      expect(hasBeforeLimit).toBe(true);
+      expect(hasAfterLimit).toBe(false);
+      expect(finalSize).toBe(MAX_LIMIT);
     });
   });
 
@@ -384,6 +381,43 @@ describe('openapi/router', () => {
   });
 
   describe('getResponseSchema - Specific Behaviors', () => {
+    it('should extract declared headers from the response spec', () => {
+      const spec = new DocumentBuilder()
+        .withPaths({
+          '/users': {
+            get: {
+              responses: {
+                '200': {
+                  description: 'OK',
+                  headers: {
+                    'X-RateLimit-Limit': {
+                      schema: { type: 'integer' }
+                    }
+                  },
+                  content: {
+                    'application/json': { schema: { type: 'object' } }
+                  }
+                }
+              }
+            }
+          }
+        })
+        .build();
+
+      const result = getResponseSchema({
+        spec,
+        path: '/users',
+        method: 'GET',
+        status: 200,
+        contentType: 'application/json'
+      });
+
+      expect(result.declaredHeaders).toBeDefined();
+      expect(result.declaredHeaders?.['X-RateLimit-Limit']).toEqual({
+        schema: { type: 'integer' }
+      });
+    });
+
     it('should throw when the response content is missing and contentType is provided', () => {
       const spec = new DocumentBuilder()
         .withPaths({

@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { OpenAPIV3 } from 'openapi-types';
 import { INTEGER_STRING_REGEX } from '../core/constants.js';
+import { safeStringify } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 import { validateStringConstraints } from './string.js';
 import {
@@ -14,7 +15,7 @@ export const typeValidators: Record<
 > = {
   string: (val) => typeof val === 'string',
   number: (val) => typeof val === 'number' && Number.isFinite(val),
-  integer: (val) => Number.isInteger(val),
+  integer: (val) => Number.isInteger(val) || typeof val === 'bigint',
   boolean: (val) => typeof val === 'boolean'
 };
 
@@ -32,7 +33,7 @@ export function validateEnum(args: ValidationArgs): void {
 
   if (!enumSet.has(value)) {
     ctx.addError(
-      `Expected one of [${schema.enum.join(', ')}], received ${JSON.stringify(value)}`
+      `Expected one of [${schema.enum.join(', ')}], received ${safeStringify(value)}`
     );
   }
 }
@@ -46,7 +47,7 @@ export function validateConst(args: ValidationArgs): void {
 
   if (!isDeepStrictEqual(value, withConst.const)) {
     ctx.addError(
-      `Expected exactly ${JSON.stringify(withConst.const)}, received ${JSON.stringify(value)}`
+      `Expected exactly ${safeStringify(withConst.const)}, received ${safeStringify(value)}`
     );
   }
 }
@@ -108,7 +109,7 @@ export function validateBaseType(args: ValidationArgs): void {
     ) {
       validateNumberFormatConstraint(args);
     }
-  } else if (typeof value === 'number') {
+  } else if (typeof value === 'number' || typeof value === 'bigint') {
     validateNumberConstraints(args);
   } else {
     if (

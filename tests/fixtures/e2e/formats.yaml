@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: Formats OpenAPI Mock
+  version: 1.0.0
+paths:
+  /test/formats:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [uuid, email, date, dateTime, ipv4, hostname, uri]
+                properties:
+                  uuid:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                    format: email
+                  date:
+                    type: string
+                    format: date
+                  dateTime:
+                    type: string
+                    format: date-time
+                  ipv4:
+                    type: string
+                    format: ipv4
+                  hostname:
+                    type: string
+                    format: hostname
+                  uri:
+                    type: string
+                    format: uri
+
+  /test/formats-extended:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ipv6, byte, int32, int64, float, double]
+                properties:
+                  ipv6:
+                    type: string
+                    format: ipv6
+                  byte:
+                    type: string
+                    format: byte
+                  int32:
+                    type: integer
+                    format: int32
+                  int64:
+                    type: integer
+                    format: int64
+                  float:
+                    type: number
+                    format: float
+                  double:
+                    type: number
+                    format: double
+        '201':
+          description: Created
+          content:
+            application/json: {}
+
+  /test/formats/no-type/int32:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: int32
+
+  /test/formats/no-type/int64:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: int64
+
+  /test/formats/no-type/float:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: float
+
+  /test/formats/no-type/double:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    format: double

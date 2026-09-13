@@ -110,12 +110,16 @@ function matchEnum(
   );
 }
 
-export function schemaMatchesProperty(args: {
+interface SchemaMatchesPropertyArgs {
   schema: unknown;
   propertyName: string;
   discriminatorValue: string;
   spec?: OpenAPIV3.Document | undefined;
-}): boolean {
+}
+
+export function schemaMatchesProperty(
+  args: SchemaMatchesPropertyArgs
+): boolean {
   const { schema, propertyName, discriminatorValue, spec } = args;
   if (!isSchemaObject(schema)) return false;
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 
 import { checkPolymorphism } from '../../../src/validators/polymorphism.js';
@@ -90,7 +90,7 @@ describe('validators/polymorphism', () => {
         validateShape
       });
 
-      assertHasValidationError(ctx, 'Failed anyOf');
+      assertHasValidationError(ctx, 'Unresolved $ref');
     });
 
     it('should skip bare $ref objects in oneOf', () => {
@@ -107,7 +107,7 @@ describe('validators/polymorphism', () => {
         validateShape
       });
 
-      assertHasValidationError(ctx, 'matches 0 schemas');
+      assertHasValidationError(ctx, 'Unresolved $ref');
     });
   });
 

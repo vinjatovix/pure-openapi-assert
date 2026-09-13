@@ -3,9 +3,10 @@ import {
   ValidationContext,
   type ValidationIssue
 } from '../core/ValidationContext.js';
-import { isPlainObject, isSchemaObject } from '../core/utils.js';
+import { isPlainObject } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 import { resolveDiscriminatorSchema } from './discriminator.js';
+import { resolveSchema } from './pointers.js';
 
 function formatBranchErrors(branchErrors: ValidationIssue[][]): string {
   return branchErrors
@@ -73,8 +74,9 @@ function tryValidateDiscriminator(args: {
 function validateAllOf(args: ValidationArgs<unknown>): void {
   const { schema, ctx } = args;
   const schemas = schema.allOf as OpenAPIV3.SchemaObject[];
-  for (const subSchema of schemas) {
-    if (!isSchemaObject(subSchema)) continue;
+  for (const sub of schemas) {
+    const subSchema = resolveSchema(sub, ctx);
+    if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
     ctx.addIssues(issues);
   }
@@ -96,8 +98,9 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
 
   const branchErrors: ValidationIssue[][] = [];
 
-  for (const subSchema of schemas) {
-    if (!isSchemaObject(subSchema)) continue;
+  for (const sub of schemas) {
+    const subSchema = resolveSchema(sub, ctx);
+    if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
     const errors = issues.filter((i) => i.severity === 'error');
     if (errors.length === 0) {
@@ -129,8 +132,9 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
   const branchErrors: ValidationIssue[][] = [];
   let successfulBranchWarnings: ValidationIssue[] = [];
 
-  for (const subSchema of schemas) {
-    if (!isSchemaObject(subSchema)) continue;
+  for (const sub of schemas) {
+    const subSchema = resolveSchema(sub, ctx);
+    if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
     const errors = issues.filter((i) => i.severity === 'error');
     if (errors.length === 0) {

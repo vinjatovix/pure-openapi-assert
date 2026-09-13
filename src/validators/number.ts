@@ -9,11 +9,20 @@ import {
 import { type ValidationContext } from '../core/ValidationContext.js';
 import { type ValidationArgs } from './args.js';
 
+function extractBigIntVal(value: unknown): bigint | undefined {
+  if (typeof value === 'bigint') {
+    return value;
+  }
+  if (typeof value === 'string' && INTEGER_STRING_REGEX.test(value)) {
+    return BigInt(value);
+  }
+  return undefined;
+}
+
 function validateMinBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  const valueStr = value as string;
-
-  if (!INTEGER_STRING_REGEX.test(valueStr)) {
+  const bigintVal = extractBigIntVal(value);
+  if (bigintVal === undefined) {
     return;
   }
 
@@ -22,7 +31,6 @@ function validateMinBigIntConstraint(args: ValidationArgs): void {
     return;
   }
 
-  const bigintVal = BigInt(valueStr);
   const isViolation =
     schema.exclusiveMinimum && !bound.isFractional
       ? bigintVal <= bound.value
@@ -37,12 +45,12 @@ function validateMinBigIntConstraint(args: ValidationArgs): void {
 
 function validateMinNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  if (schema.minimum === undefined) {
+  if (schema.minimum === undefined || typeof value !== 'number') {
     return;
   }
   const isViolation = schema.exclusiveMinimum
-    ? (value as number) <= schema.minimum
-    : (value as number) < schema.minimum;
+    ? value <= schema.minimum
+    : value < schema.minimum;
   if (isViolation) {
     ctx.addError(
       `Value ${String(value)} is less than ${schema.exclusiveMinimum ? 'or equal to ' : ''}minimum ${schema.minimum}`
@@ -54,7 +62,10 @@ export function validateMinConstraint(args: ValidationArgs): void {
   const { value, schema } = args;
   if (schema.minimum === undefined) return;
 
-  if (typeof value === 'string' && schema.format === 'int64') {
+  if (
+    (typeof value === 'string' && schema.format === 'int64') ||
+    typeof value === 'bigint'
+  ) {
     validateMinBigIntConstraint(args);
   } else if (typeof value === 'number') {
     validateMinNumberConstraint(args);
@@ -63,9 +74,8 @@ export function validateMinConstraint(args: ValidationArgs): void {
 
 function validateMaxBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  const valueStr = value as string;
-
-  if (!INTEGER_STRING_REGEX.test(valueStr)) {
+  const bigintVal = extractBigIntVal(value);
+  if (bigintVal === undefined) {
     return;
   }
 
@@ -74,7 +84,6 @@ function validateMaxBigIntConstraint(args: ValidationArgs): void {
     return;
   }
 
-  const bigintVal = BigInt(valueStr);
   const isViolation =
     schema.exclusiveMaximum && !bound.isFractional
       ? bigintVal >= bound.value
@@ -89,12 +98,12 @@ function validateMaxBigIntConstraint(args: ValidationArgs): void {
 
 function validateMaxNumberConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  if (schema.maximum === undefined) {
+  if (schema.maximum === undefined || typeof value !== 'number') {
     return;
   }
   const isViolation = schema.exclusiveMaximum
-    ? (value as number) >= schema.maximum
-    : (value as number) > schema.maximum;
+    ? value >= schema.maximum
+    : value > schema.maximum;
   if (isViolation) {
     ctx.addError(
       `Value ${String(value)} is greater than ${schema.exclusiveMaximum ? 'or equal to ' : ''}maximum ${schema.maximum}`
@@ -106,7 +115,10 @@ export function validateMaxConstraint(args: ValidationArgs): void {
   const { value, schema } = args;
   if (schema.maximum === undefined) return;
 
-  if (typeof value === 'string' && schema.format === 'int64') {
+  if (
+    (typeof value === 'string' && schema.format === 'int64') ||
+    typeof value === 'bigint'
+  ) {
     validateMaxBigIntConstraint(args);
   } else if (typeof value === 'number') {
     validateMaxNumberConstraint(args);
@@ -145,9 +157,8 @@ function resolveBigIntMultiple(
 
 function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
-  const valueStr = value as string;
-
-  if (!INTEGER_STRING_REGEX.test(valueStr)) {
+  const bigintVal = extractBigIntVal(value);
+  if (bigintVal === undefined) {
     return;
   }
 
@@ -156,9 +167,9 @@ function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
     return;
   }
 
-  const bigintVal = BigInt(valueStr) * resolved.multiplier;
+  const adjustedVal = bigintVal * resolved.multiplier;
 
-  if (bigintVal % resolved.bigintMultiple !== 0n) {
+  if (adjustedVal % resolved.bigintMultiple !== 0n) {
     ctx.addError(
       `Value ${String(value)} is not a multiple of ${schema.multipleOf}`
     );
@@ -285,7 +296,10 @@ export function validateMultipleOfConstraint(args: ValidationArgs): void {
   const { value, schema } = args;
   if (schema.multipleOf === undefined) return;
 
-  if (typeof value === 'string' && schema.format === 'int64') {
+  if (
+    (typeof value === 'string' && schema.format === 'int64') ||
+    typeof value === 'bigint'
+  ) {
     validateMultipleOfBigIntConstraint(args);
   } else if (typeof value === 'number') {
     validateMultipleOfNumberConstraint(args);
@@ -296,6 +310,10 @@ function validateInt32(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (typeof value === 'number') {
     if (!Number.isInteger(value) || value < INT32_MIN || value > INT32_MAX) {
+      ctx.addError(`Expected 32-bit integer, received ${String(value)}`);
+    }
+  } else if (typeof value === 'bigint') {
+    if (value < BigInt(INT32_MIN) || value > BigInt(INT32_MAX)) {
       ctx.addError(`Expected 32-bit integer, received ${String(value)}`);
     }
   } else {
@@ -334,6 +352,13 @@ function validateInt64(args: ValidationArgs): void {
 
   if (typeof value === 'string') {
     validateInt64String(value, ctx);
+    return;
+  }
+
+  if (typeof value === 'bigint') {
+    if (value < INT64_MIN || value > INT64_MAX) {
+      ctx.addError(`Value ${String(value)} exceeds 64-bit integer limits`);
+    }
     return;
   }
 

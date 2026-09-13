@@ -1,0 +1,255 @@
+openapi: 3.0.3
+info:
+  title: Constraints OpenAPI Mock
+  version: 1.0.0
+paths:
+  /test/constraints/numbers:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valMin, valMax, valExMin, valExMax, valMultiple]
+                properties:
+                  valMin:
+                    type: number
+                    minimum: 10
+                  valMax:
+                    type: number
+                    maximum: 100
+                  valExMin:
+                    type: number
+                    minimum: 5
+                    exclusiveMinimum: true
+                  valExMax:
+                    type: number
+                    maximum: 50
+                    exclusiveMaximum: true
+                  valMultiple:
+                    type: number
+                    multipleOf: 2.5
+
+  /test/constraints/strings:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valStr]
+                properties:
+                  valStr:
+                    type: string
+                    minLength: 3
+                    maxLength: 10
+                    pattern: '^[a-z]+$'
+
+  /test/constraints/arrays:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valArr]
+                properties:
+                  valArr:
+                    type: array
+                    minItems: 2
+                    maxItems: 4
+                    uniqueItems: true
+                    items:
+                      type: string
+
+  /test/constraints/arrays-objects:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valArr]
+                properties:
+                  valArr:
+                    type: array
+                    uniqueItems: true
+                    items:
+                      type: object
+
+  /test/objects/strict:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                minProperties: 1
+                maxProperties: 2
+                properties:
+                  allowedField:
+                    type: string
+                  anotherAllowed:
+                    type: string
+
+  /test/objects/additional-schema:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  required: [nestedVal]
+                  properties:
+                    nestedVal:
+                      type: number
+                properties:
+                  declaredField:
+                    type: string
+
+  /test/validation/invalid-minimum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    minimum: 'not-a-number'
+
+  /test/validation/invalid-maximum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    maximum: 'not-a-number'
+
+  /test/validation/invalid-multipleof:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    multipleOf: 'not-a-number'
+
+  /test/validation/bigint-constraints:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: integer
+                    format: int64
+                    minimum: 10
+                    maximum: 100
+                    multipleOf: 5
+
+  /test/validation/write-only:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: string
+                    writeOnly: true
+
+  /test/validation/nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [field]
+                properties:
+                  field:
+                    type: string
+                    nullable: true
+
+  /test/validation/const:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, code]
+                properties:
+                  status:
+                    type: string
+                    const: success
+                  code:
+                    type: integer
+                    const: 200
+
+  /test/validation/enum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [role, level]
+                properties:
+                  role:
+                    type: string
+                    enum: [admin, user, guest]
+                  level:
+                    type: integer
+                    enum: [1, 2, 3]
