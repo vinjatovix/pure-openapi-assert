@@ -17,7 +17,7 @@ import { contextMother } from '../../helpers/contextMother.js';
 import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 
-describe('Validators number (Unit)', () => {
+describe('validators/number', () => {
   let ctx: ReturnType<typeof contextMother.empty>;
 
   beforeEach(() => {

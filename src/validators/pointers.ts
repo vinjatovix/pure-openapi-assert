@@ -4,22 +4,24 @@ import {
   JSON_POINTER_SLASH_REGEX,
   JSON_POINTER_TILDE_REGEX
 } from '../core/constants.js';
-import { MAX_CACHE_SIZE } from '../core/constants.js';
+import { FIFOCache } from '../core/FIFOCache.js';
 import { isSchemaObject } from '../core/utils.js';
 
-const pointerCache = new WeakMap<object, Map<string, unknown>>();
+const pointerCache = new WeakMap<object, FIFOCache<string, unknown>>();
 const schemaPointerMatchCache = new WeakMap<
   OpenAPIV3.Document,
   WeakMap<
     Array<OpenAPIV3.SchemaObject>,
-    Map<string, OpenAPIV3.SchemaObject | undefined>
+    FIFOCache<string, OpenAPIV3.SchemaObject | undefined>
   >
 >();
 
-function getOrInitSpecCache(spec: OpenAPIV3.Document): Map<string, unknown> {
+function getOrInitSpecCache(
+  spec: OpenAPIV3.Document
+): FIFOCache<string, unknown> {
   let specCache = pointerCache.get(spec);
   if (!specCache) {
-    specCache = new Map<string, unknown>();
+    specCache = new FIFOCache<string, unknown>();
     pointerCache.set(spec, specCache);
   }
 
@@ -76,10 +78,6 @@ export function resolvePointer(
   });
   const target = traversePointerParts(spec, parts);
 
-  if (specCache.size >= MAX_CACHE_SIZE) {
-    const firstKey = specCache.keys().next().value;
-    specCache.delete(firstKey as string);
-  }
   specCache.set(pointer, target);
 
   return target;
@@ -88,7 +86,7 @@ export function resolvePointer(
 function getOrInitPointerMatchCache(
   spec: OpenAPIV3.Document,
   schemas: Array<OpenAPIV3.SchemaObject>
-): Map<string, OpenAPIV3.SchemaObject | undefined> {
+): FIFOCache<string, OpenAPIV3.SchemaObject | undefined> {
   let docCache = schemaPointerMatchCache.get(spec);
   if (!docCache) {
     docCache = new WeakMap();
@@ -97,7 +95,7 @@ function getOrInitPointerMatchCache(
 
   let cache = docCache.get(schemas);
   if (!cache) {
-    cache = new Map<string, OpenAPIV3.SchemaObject | undefined>();
+    cache = new FIFOCache<string, OpenAPIV3.SchemaObject | undefined>();
     docCache.set(schemas, cache);
   }
 
@@ -144,19 +142,11 @@ export function findSchemaByPointer(args: {
   const target = resolvePointer(spec, fullPointer);
 
   if (!isSchemaObject(target)) {
-    if (cache.size >= MAX_CACHE_SIZE) {
-      const firstKey = cache.keys().next().value;
-      cache.delete(firstKey as string);
-    }
     cache.set(pointer, undefined);
     return undefined;
   }
 
   const match = findBestSchemaMatch(schemas, target);
-  if (cache.size >= MAX_CACHE_SIZE) {
-    const firstKey = cache.keys().next().value;
-    cache.delete(firstKey as string);
-  }
   cache.set(pointer, match);
 
   return match;

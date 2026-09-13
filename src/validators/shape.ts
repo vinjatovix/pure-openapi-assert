@@ -3,9 +3,9 @@ import { checkPolymorphism } from './polymorphism.js';
 import {
   validateArray,
   validateBaseType,
-  validateObject,
   validateConst,
-  validateEnum
+  validateEnum,
+  validateObject
 } from './type-validators.js';
 
 const validators: Record<string, (args: ValidationArgs) => void> = {
@@ -19,6 +19,10 @@ const validators: Record<string, (args: ValidationArgs) => void> = {
 
 export function validateShape(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
+
+  if (schema.deprecated) {
+    ctx.addWarning('Schema property is deprecated');
+  }
 
   if (schema.writeOnly && value !== undefined) {
     ctx.addError('Field is writeOnly and must not be present in the response');

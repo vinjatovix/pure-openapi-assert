@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getCachedRegex } from '../../../src/validators/format.js';
 
-describe('format.ts unit tests', () => {
+describe('validators/format', () => {
   describe('getCachedRegex', () => {
     it('should cache regular expressions and reuse them', () => {
       const rx1 = getCachedRegex('^[a-z]+$');

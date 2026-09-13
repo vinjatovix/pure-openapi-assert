@@ -1,3 +1,4 @@
+import { type MockInstance, vi } from 'vitest';
 import { assertResponseMatchesOpenAPI } from '../../src/index.js';
 
 describe('assertResponseMatchesOpenAPI', () => {
@@ -27,117 +28,85 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should reject invalid UUIDs', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, uuid: 'invalid-uuid' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'uuid', received 'invalid-uuid'"
-        );
-      });
+      const formatTestCases = [
+        {
+          field: 'uuid',
+          value: 'invalid-uuid',
+          format: 'uuid',
+          desc: 'invalid UUIDs'
+        },
+        {
+          field: 'email',
+          value: 'not-an-email',
+          format: 'email',
+          desc: 'invalid emails'
+        },
+        {
+          field: 'date',
+          value: '2026-02-30',
+          format: 'date',
+          desc: 'invalid dates (bad semantic date)'
+        },
+        {
+          field: 'dateTime',
+          value: '2026-09-09T12:00:00',
+          format: 'date-time',
+          desc: 'invalid date-times (missing timezone)'
+        },
+        {
+          field: 'ipv4',
+          value: '999.999.999.999',
+          format: 'ipv4',
+          desc: 'invalid IPv4 addresses'
+        },
+        {
+          field: 'hostname',
+          value: 'invalid_host@',
+          format: 'hostname',
+          desc: 'invalid hostnames'
+        },
+        {
+          field: 'uri',
+          value: 'not-a-valid-uri',
+          format: 'uri',
+          desc: 'invalid URIs'
+        },
+        {
+          field: 'date',
+          value: 'not-a-date',
+          format: 'date',
+          desc: 'completely invalid date formats'
+        },
+        {
+          field: 'date',
+          value: '2026-13-09',
+          format: 'date',
+          desc: 'invalid month in strict date check'
+        },
+        {
+          field: 'date',
+          value: '2026-09-00',
+          format: 'date',
+          desc: 'zero day in strict date check'
+        }
+      ];
 
-      it('should reject invalid emails', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, email: 'not-an-email' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'email', received 'not-an-email'"
-        );
-      });
-
-      it('should reject invalid dates', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, date: '2026-02-30' } // Bad semantic date
-          })
-        ).rejects.toThrow(
-          "Expected string format 'date', received '2026-02-30'"
-        );
-      });
-
-      it('should reject invalid date-times', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, dateTime: '2026-09-09T12:00:00' } // Missing timezone
-          })
-        ).rejects.toThrow(
-          "Expected string format 'date-time', received '2026-09-09T12:00:00'"
-        );
-      });
-
-      it('should reject invalid IPv4 addresses', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, ipv4: '999.999.999.999' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'ipv4', received '999.999.999.999'"
-        );
-      });
-
-      it('should reject invalid hostnames', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, hostname: 'invalid_host@' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'hostname', received 'invalid_host@'"
-        );
-      });
-
-      it('should reject invalid URIs', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, uri: 'not-a-valid-uri' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'uri', received 'not-a-valid-uri'"
-        );
-      });
-
-      it('should reject completely invalid date formats in strict date check', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, date: 'not-a-date' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'date', received 'not-a-date'"
-        );
-      });
+      it.each(formatTestCases)(
+        'should reject $desc',
+        async ({ field, value, format }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path: '/test/formats',
+              method: 'GET',
+              status: 200,
+              body: { ...validPayload, [field]: value }
+            })
+          ).rejects.toThrow(
+            `Expected string format '${format}', received '${value}'`
+          );
+        }
+      );
     });
 
     describe('Formats Extended (/test/formats-extended)', () => {
@@ -174,71 +143,105 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should reject invalid IPv6 addresses', async () => {
+      it('should validate int64 min/max/multipleOf constraints correctly when string-based', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
             specPath,
             path: '/test/formats-extended',
             method: 'GET',
             status: 200,
-            body: { ...validPayload, ipv6: '2001:db8::invalid' }
+            body: { ...validPayload, int64: '10' }
           })
-        ).rejects.toThrow(
-          "Expected string format 'ipv6', received '2001:db8::invalid'"
-        );
+        ).resolves.not.toThrow();
       });
 
-      it('should reject invalid Base64 byte strings', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, byte: 'Not-Base64!!!' }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'byte', received 'Not-Base64!!!'"
-        );
-      });
+      const extendedFormatTestCases = [
+        {
+          field: 'ipv6',
+          value: '2001:db8::invalid',
+          expectedError:
+            "Expected string format 'ipv6', received '2001:db8::invalid'",
+          desc: 'invalid IPv6 addresses'
+        },
+        {
+          field: 'byte',
+          value: 'Not-Base64!!!',
+          expectedError:
+            "Expected string format 'byte', received 'Not-Base64!!!'",
+          desc: 'invalid Base64 byte strings'
+        },
+        {
+          field: 'int32',
+          value: 2147483648,
+          expectedError: 'Expected 32-bit integer, received 2147483648',
+          desc: 'invalid int32 out of range'
+        },
+        {
+          field: 'int64',
+          value: '9223372036854775808',
+          expectedError:
+            'Value 9223372036854775808 exceeds 64-bit integer limits',
+          desc: 'invalid int64 out of range (string)'
+        },
+        {
+          field: 'float',
+          value: 4e38,
+          expectedError: 'Expected 32-bit float, received 4e+38',
+          desc: 'invalid float exceeding 32-bit float limits'
+        },
+        {
+          field: 'int32',
+          value: 'not-a-number',
+          expectedError: 'Expected integer, received string',
+          desc: 'non-number for int32'
+        },
+        {
+          field: 'int64',
+          value: true,
+          expectedError: 'Expected integer, received boolean',
+          desc: 'non-number/non-string for int64'
+        },
+        {
+          field: 'float',
+          value: 'not-a-number',
+          expectedError: 'Expected number, received string',
+          desc: 'non-number for float'
+        },
+        {
+          field: 'double',
+          value: 'not-a-number',
+          expectedError: 'Expected number, received string',
+          desc: 'non-number for double'
+        },
+        {
+          field: 'int64',
+          value: 'not-a-valid-int',
+          expectedError: 'Expected integer, received string',
+          desc: 'invalid string for int64'
+        },
+        {
+          field: 'int64',
+          value: '-9223372036854775809',
+          expectedError:
+            'Value -9223372036854775809 exceeds 64-bit integer limits',
+          desc: 'strict int64 bounds violating minimum'
+        }
+      ];
 
-      it('should reject invalid int32 out of range', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, int32: 2147483648 }
-          })
-        ).rejects.toThrow('Expected 32-bit integer, received 2147483648');
-      });
-
-      it('should reject invalid int64 out of range (string)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, int64: '9223372036854775808' }
-          })
-        ).rejects.toThrow(
-          'Value 9223372036854775808 exceeds 64-bit integer limits'
-        );
-      });
-
-      it('should reject invalid float exceeding 32-bit float limits', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validPayload, float: 4e38 }
-          })
-        ).rejects.toThrow('Expected 32-bit float, received 4e+38');
-      });
+      it.each(extendedFormatTestCases)(
+        'should reject $desc',
+        async ({ field, value, expectedError }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path: '/test/formats-extended',
+              method: 'GET',
+              status: 200,
+              body: { ...validPayload, [field]: value }
+            })
+          ).rejects.toThrow(expectedError);
+        }
+      );
     });
 
     describe('Custom Formats Validation', () => {
@@ -471,6 +474,18 @@ describe('assertResponseMatchesOpenAPI', () => {
           })
         ).rejects.toThrow('Array has 5 items, maximum is 4');
       });
+
+      it('should throw an error if validateArray receives a non-array', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/constraints/arrays',
+            method: 'GET',
+            status: 200,
+            body: { valArr: 'not-an-array' }
+          })
+        ).rejects.toThrow('Expected array, received string');
+      });
     });
 
     describe('Array of Objects Constraints (/test/constraints/arrays-objects)', () => {
@@ -597,6 +612,18 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).rejects.toThrow(
           "Key 'forbiddenField' is not allowed by OpenAPI schema"
         );
+      });
+
+      it('should throw an error if validateObject receives a non-object', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath,
+            path: '/test/objects/strict',
+            method: 'GET',
+            status: 200,
+            body: 'not-an-object'
+          })
+        ).rejects.toThrow('Expected object, received string');
       });
     });
 
@@ -1041,172 +1068,7 @@ describe('assertResponseMatchesOpenAPI', () => {
       });
     });
 
-    describe('Uncovered Edge Cases', () => {
-      const validExtendedPayload = {
-        ipv6: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
-        byte: 'U3BlY2tpdCBpcyBhd2Vzb21lIQ==',
-        int32: 2147483647,
-        int64: 9007199254740991,
-        float: 3.40282e38,
-        double: 1.7976931348623157e308
-      };
-
-      it('should throw an error if validateArray receives a non-array', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/constraints/arrays',
-            method: 'GET',
-            status: 200,
-            body: { valArr: 'not-an-array' }
-          })
-        ).rejects.toThrow('Expected array, received string');
-      });
-
-      it('should throw an error if validateObject receives a non-object', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/objects/strict',
-            method: 'GET',
-            status: 200,
-            body: 'not-an-object'
-          })
-        ).rejects.toThrow('Expected object, received string');
-      });
-
-      it('should throw an error if validateNumberFormatConstraint receives a non-number for int32', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, int32: 'not-a-number' }
-          })
-        ).rejects.toThrow('Expected integer, received string');
-      });
-
-      it('should throw an error if validateNumberFormatConstraint receives a non-number/non-string for int64', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, int64: true }
-          })
-        ).rejects.toThrow('Expected integer, received boolean');
-      });
-
-      it('should throw an error if validateNumberFormatConstraint receives a non-number for float', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, float: 'not-a-number' }
-          })
-        ).rejects.toThrow('Expected number, received string');
-      });
-
-      it('should throw an error if validateNumberFormatConstraint receives a non-number for double', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, double: 'not-a-number' }
-          })
-        ).rejects.toThrow('Expected number, received string');
-      });
-
-      it('should throw an error if validateNumberFormatConstraint receives an invalid string for int64', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, int64: 'not-a-valid-int' }
-          })
-        ).rejects.toThrow('Expected integer, received string');
-      });
-
-      it('should reject with strict int64 bounds violating minimum', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, int64: '-9223372036854775809' } // less than signed 64-bit min
-          })
-        ).rejects.toThrow(
-          'Value -9223372036854775809 exceeds 64-bit integer limits'
-        );
-      });
-
-      it('should validate int64 min/max/multipleOf constraints correctly when string-based', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats-extended',
-            method: 'GET',
-            status: 200,
-            body: { ...validExtendedPayload, int64: '10' }
-          })
-        ).resolves.not.toThrow();
-      });
-    });
-
-    describe('Specific Coverage Gap Assertions', () => {
-      it('should fail with invalid month in strict date check', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: {
-              uuid: '123e4567-e89b-12d3-a456-426614174000',
-              email: 'test@example.com',
-              date: '2026-13-09',
-              dateTime: '2026-09-09T12:00:00Z',
-              ipv4: '192.168.1.1',
-              hostname: 'agroapp.local',
-              uri: 'https://agroapp.local/v1'
-            }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'date', received '2026-13-09'"
-        );
-      });
-
-      it('should fail with zero day in strict date check', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats',
-            method: 'GET',
-            status: 200,
-            body: {
-              uuid: '123e4567-e89b-12d3-a456-426614174000',
-              email: 'test@example.com',
-              date: '2026-09-00',
-              dateTime: '2026-09-09T12:00:00Z',
-              ipv4: '192.168.1.1',
-              hostname: 'agroapp.local',
-              uri: 'https://agroapp.local/v1'
-            }
-          })
-        ).rejects.toThrow(
-          "Expected string format 'date', received '2026-09-00'"
-        );
-      });
-
+    describe('Validation Keywords (const, enum, nullable, writeOnly)', () => {
       it('should throw an error if a writeOnly field is present in response', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
@@ -1245,29 +1107,33 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should fail if const constraint is violated (string)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/const',
-            method: 'GET',
-            status: 200,
-            body: { status: 'failed', code: 200 }
-          })
-        ).rejects.toThrow('Expected exactly "success", received "failed"');
-      });
+      const constRejectionCases = [
+        {
+          body: { status: 'failed', code: 200 },
+          error: 'Expected exactly "success", received "failed"',
+          desc: 'const constraint violated (string)'
+        },
+        {
+          body: { status: 'success', code: 500 },
+          error: 'Expected exactly 200, received 500',
+          desc: 'const constraint violated (integer)'
+        }
+      ];
 
-      it('should fail if const constraint is violated (integer)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/const',
-            method: 'GET',
-            status: 200,
-            body: { status: 'success', code: 500 }
-          })
-        ).rejects.toThrow('Expected exactly 200, received 500');
-      });
+      it.each(constRejectionCases)(
+        'should reject if $desc',
+        async ({ body, error }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path: '/test/validation/const',
+              method: 'GET',
+              status: 200,
+              body
+            })
+          ).rejects.toThrow(error);
+        }
+      );
 
       it('should validate enum constraints successfully', async () => {
         await expect(
@@ -1281,147 +1147,126 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should fail if enum constraint is violated (string)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/enum',
-            method: 'GET',
-            status: 200,
-            body: { role: 'invalid-role', level: 1 }
-          })
-        ).rejects.toThrow(
-          'Expected one of [admin, user, guest], received "invalid-role"'
-        );
-      });
+      const enumRejectionCases = [
+        {
+          body: { role: 'invalid-role', level: 1 },
+          error:
+            'Expected one of [admin, user, guest], received "invalid-role"',
+          desc: 'enum constraint violated (string)'
+        },
+        {
+          body: { role: 'admin', level: 5 },
+          error: 'Expected one of [1, 2, 3], received 5',
+          desc: 'enum constraint violated (integer)'
+        }
+      ];
 
-      it('should fail if enum constraint is violated (integer)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/enum',
-            method: 'GET',
-            status: 200,
-            body: { role: 'admin', level: 5 }
-          })
-        ).rejects.toThrow('Expected one of [1, 2, 3], received 5');
-      });
+      it.each(enumRejectionCases)(
+        'should reject if $desc',
+        async ({ body, error }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path: '/test/validation/enum',
+              method: 'GET',
+              status: 200,
+              body
+            })
+          ).rejects.toThrow(error);
+        }
+      );
+    });
 
-      it('should validate int32 format constraint without a specified type in schema', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats/no-type/int32',
-            method: 'GET',
-            status: 200,
-            body: { field: 'not-a-number-string' }
-          })
-        ).rejects.toThrow('Expected 32-bit integer, received string');
-      });
+    describe('Numeric Format Constraint Fallbacks (no explicit type in schema)', () => {
+      const fallbackTestCases = [
+        {
+          path: '/test/formats/no-type/int32',
+          body: { field: 'not-a-number-string' },
+          error: 'Expected 32-bit integer, received string',
+          desc: 'int32 format check (string)'
+        },
+        {
+          path: '/test/formats/no-type/int32',
+          body: { field: true },
+          error: 'Expected 32-bit integer, received boolean',
+          desc: 'int32 format check (boolean)'
+        },
+        {
+          path: '/test/formats/no-type/int64',
+          body: { field: '9223372036854775808' },
+          error: 'Value 9223372036854775808 exceeds 64-bit integer limits',
+          desc: 'int64 format check (string out of range)'
+        },
+        {
+          path: '/test/formats/no-type/int64',
+          // eslint-disable-next-line no-loss-of-precision
+          body: { field: 9999999999999999 },
+          error: 'Expected 64-bit integer, received 10000000000000000',
+          desc: 'int64 format check (number out of range)'
+        },
+        {
+          path: '/test/formats/no-type/float',
+          body: { field: 'not-a-number-string' },
+          error: 'Expected 32-bit float, received string',
+          desc: 'float format check'
+        },
+        {
+          path: '/test/formats/no-type/double',
+          body: { field: 'not-a-number-string' },
+          error: 'Expected 64-bit float, received not-a-number-string',
+          desc: 'double format check'
+        }
+      ];
 
-      it('should validate int32 format constraint without a specified type in schema (boolean)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats/no-type/int32',
-            method: 'GET',
-            status: 200,
-            body: { field: true }
-          })
-        ).rejects.toThrow('Expected 32-bit integer, received boolean');
-      });
+      it.each(fallbackTestCases)(
+        'should validate $desc correctly without type in schema',
+        async ({ path, body, error }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path,
+              method: 'GET',
+              status: 200,
+              body
+            })
+          ).rejects.toThrow(error);
+        }
+      );
+    });
 
-      it('should validate int64 format constraint without a specified type in schema (string)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats/no-type/int64',
-            method: 'GET',
-            status: 200,
-            body: { field: '9223372036854775808' }
-          })
-        ).rejects.toThrow(
-          'Value 9223372036854775808 exceeds 64-bit integer limits'
-        );
-      });
+    describe('Robustness Against Malformed Schema Constraints', () => {
+      const malformedCases = [
+        {
+          path: '/test/validation/invalid-minimum',
+          desc: 'invalid minimum configuration'
+        },
+        {
+          path: '/test/validation/invalid-maximum',
+          desc: 'invalid maximum configuration'
+        },
+        {
+          path: '/test/validation/invalid-multipleof',
+          desc: 'invalid multipleof configuration'
+        }
+      ];
 
-      it('should validate int64 format constraint without a type (number out of range)', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats/no-type/int64',
-            method: 'GET',
-            status: 200,
-            // eslint-disable-next-line no-loss-of-precision
-            body: { field: 9999999999999999 }
-          })
-        ).rejects.toThrow(
-          'Expected 64-bit integer, received 10000000000000000'
-        );
-      });
+      it.each(malformedCases)(
+        'should ignore $desc gracefully',
+        async ({ path }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path,
+              method: 'GET',
+              status: 200,
+              body: { field: '10' }
+            })
+          ).resolves.not.toThrow();
+        }
+      );
+    });
 
-      it('should validate float format constraint without a specified type in schema', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats/no-type/float',
-            method: 'GET',
-            status: 200,
-            body: { field: 'not-a-number-string' }
-          })
-        ).rejects.toThrow('Expected 32-bit float, received string');
-      });
-
-      it('should validate double format constraint without a specified type in schema', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/formats/no-type/double',
-            method: 'GET',
-            status: 200,
-            body: { field: 'not-a-number-string' }
-          })
-        ).rejects.toThrow(
-          'Expected 64-bit float, received not-a-number-string'
-        );
-      });
-
-      it('should ignore invalid minimum schema configuration gracefully', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/invalid-minimum',
-            method: 'GET',
-            status: 200,
-            body: { field: '10' }
-          })
-        ).resolves.not.toThrow();
-      });
-
-      it('should ignore invalid maximum schema configuration gracefully', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/invalid-maximum',
-            method: 'GET',
-            status: 200,
-            body: { field: '10' }
-          })
-        ).resolves.not.toThrow();
-      });
-
-      it('should ignore invalid multipleof schema configuration gracefully', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/invalid-multipleof',
-            method: 'GET',
-            status: 200,
-            body: { field: '10' }
-          })
-        ).resolves.not.toThrow();
-      });
-
+    describe('BigInt Constraints on String-Based Integers', () => {
       it('should pass if string-based int64 satisfies valid bigint constraints', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
@@ -1434,42 +1279,41 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should reject if string-based int64 violates bigint minimum', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/bigint-constraints',
-            method: 'GET',
-            status: 200,
-            body: { field: '5' }
-          })
-        ).rejects.toThrow('Value 5 is less than minimum 10');
-      });
+      const bigintRejectionCases = [
+        {
+          value: '5',
+          error: 'Value 5 is less than minimum 10',
+          desc: 'bigint minimum'
+        },
+        {
+          value: '150',
+          error: 'Value 150 is greater than maximum 100',
+          desc: 'bigint maximum'
+        },
+        {
+          value: '23',
+          error: 'Value 23 is not a multiple of 5',
+          desc: 'bigint multipleOf'
+        }
+      ];
 
-      it('should reject if string-based int64 violates bigint maximum', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/bigint-constraints',
-            method: 'GET',
-            status: 200,
-            body: { field: '150' }
-          })
-        ).rejects.toThrow('Value 150 is greater than maximum 100');
-      });
+      it.each(bigintRejectionCases)(
+        'should reject if string-based int64 violates $desc',
+        async ({ value, error }) => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath,
+              path: '/test/validation/bigint-constraints',
+              method: 'GET',
+              status: 200,
+              body: { field: value }
+            })
+          ).rejects.toThrow(error);
+        }
+      );
+    });
 
-      it('should reject if string-based int64 violates bigint multipleOf', async () => {
-        await expect(
-          assertResponseMatchesOpenAPI({
-            specPath,
-            path: '/test/validation/bigint-constraints',
-            method: 'GET',
-            status: 200,
-            body: { field: '23' }
-          })
-        ).rejects.toThrow('Value 23 is not a multiple of 5');
-      });
-
+    describe('Polymorphism with Nested References', () => {
       it('should pass and resolve reference schemas inside polymorphism ref-object successfully', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
@@ -1616,11 +1460,14 @@ describe('assertResponseMatchesOpenAPI', () => {
     });
 
     describe('HTTP 204 Early Validation', () => {
+      const realSpecPath = 'tests/fixtures/mock-openapi.yaml';
+      const realPath = '/test/no-content';
+
       it('should pass if 204 status has an undefined body', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath: 'any',
-            path: '/any',
+            specPath: realSpecPath,
+            path: realPath,
             method: 'GET',
             status: 204,
             body: undefined
@@ -1631,8 +1478,8 @@ describe('assertResponseMatchesOpenAPI', () => {
       it('should pass if 204 status has a null body', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath: 'any',
-            path: '/any',
+            specPath: realSpecPath,
+            path: realPath,
             method: 'GET',
             status: 204,
             body: null
@@ -1643,8 +1490,8 @@ describe('assertResponseMatchesOpenAPI', () => {
       it('should pass if 204 status has an empty object body', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath: 'any',
-            path: '/any',
+            specPath: realSpecPath,
+            path: realPath,
             method: 'GET',
             status: 204,
             body: {}
@@ -1652,11 +1499,11 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should throw if 204 status has a non-empty body', async () => {
+      it('should throw if 204 status has a non-empty body (proves fast-path error prioritization without loading spec)', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath: 'any',
-            path: '/any',
+            specPath: 'any-non-existent-spec.yaml',
+            path: '/any-path',
             method: 'GET',
             status: 204,
             body: { hasContent: true }
@@ -1664,16 +1511,279 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).rejects.toThrow('204 must have empty body');
       });
 
-      it('should throw if 204 status has a non-empty string body', async () => {
+      it('should throw if 204 status has a non-empty string body (proves fast-path error prioritization without loading spec)', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath: 'any',
-            path: '/any',
+            specPath: 'any-non-existent-spec.yaml',
+            path: '/any-path',
             method: 'GET',
             status: 204,
             body: 'non-empty-string'
           })
         ).rejects.toThrow('204 must have empty body');
+      });
+
+      it('should throw if 204 status has an empty body but the path does not exist in the spec (proves BDD routing validation)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath: realSpecPath,
+            path: '/non-existent-route-path',
+            method: 'GET',
+            status: 204,
+            body: undefined
+          })
+        ).rejects.toThrow('Path not found in OpenAPI');
+      });
+    });
+
+    describe('Track 3.2: Content-Type Validation and Deprecations', () => {
+      let warnSpy: MockInstance;
+      const expectedWarning = (path: string, message: string) => {
+        const YELLOW = '\x1b[33m';
+        const RESET = '\x1b[0m';
+        const pathStr = path ? ` [${path}]` : '';
+        return `${YELLOW}[OpenAPI-Assert] ⚠️  Warning:${RESET}${pathStr} ${message}`;
+      };
+
+      beforeEach(() => {
+        warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        warnSpy.mockRestore();
+      });
+
+      describe('Content-Type Strict Matching', () => {
+        it('should pass if contentType matches declared type', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/formats',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/json',
+              body: {
+                uuid: '123e4567-e89b-12d3-a456-426614174000',
+                email: 'test@example.com',
+                date: '2026-09-12',
+                dateTime: '2026-09-12T16:00:00Z',
+                ipv4: '192.168.1.1',
+                hostname: 'example.com',
+                uri: 'https://example.com'
+              }
+            })
+          ).resolves.not.toThrow();
+        });
+
+        it('should throw an error if contentType is not declared', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/formats',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/xml',
+              body: '<xml></xml>'
+            })
+          ).rejects.toThrow(
+            "Content-Type 'application/xml' is not declared for GET /test/formats 200. Declared: application/json"
+          );
+        });
+
+        it('should support wildcard media types like image/*', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/wildcard',
+              method: 'GET',
+              status: 200,
+              contentType: 'image/png',
+              body: 'opaque-image-string'
+            })
+          ).rejects.toThrow(
+            "Expected body to be a Buffer for binary Content-Type 'image/png', received string"
+          );
+
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/wildcard',
+              method: 'GET',
+              status: 200,
+              contentType: 'image/png',
+              body: Buffer.from('image-binary-data')
+            })
+          ).resolves.not.toThrow();
+        });
+
+        it('should support wildcard media types like application/*+json', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/wildcard',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/vnd.api+json',
+              body: { status: 'success' }
+            })
+          ).resolves.not.toThrow();
+        });
+      });
+
+      describe('Non-JSON Short-circuit Validation', () => {
+        it('should validate text content type as string and skip structural schema checks', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/xml',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/xml',
+              body: '<response>ok</response>'
+            })
+          ).resolves.not.toThrow();
+
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/xml',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/xml',
+              body: { some: 'object' }
+            })
+          ).rejects.toThrow(
+            "Expected body to be a string for Content-Type 'application/xml', received object"
+          );
+        });
+
+        it('should validate binary content type as Buffer and skip structural schema checks', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/binary',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/octet-stream',
+              body: Buffer.from([1, 2, 3])
+            })
+          ).resolves.not.toThrow();
+
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/content-type/binary',
+              method: 'GET',
+              status: 200,
+              contentType: 'application/octet-stream',
+              body: 'not-a-buffer'
+            })
+          ).rejects.toThrow(
+            "Expected body to be a Buffer for binary Content-Type 'application/octet-stream', received string"
+          );
+        });
+      });
+
+      describe('Deprecation Warnings Support', () => {
+        it('should warn when a deprecated endpoint is consumed', async () => {
+          await assertResponseMatchesOpenAPI({
+            specPath: 'tests/fixtures/mock-openapi.yaml',
+            path: '/test/deprecated-route',
+            method: 'GET',
+            status: 200,
+            body: { message: 'hello' }
+          });
+
+          expect(warnSpy).toHaveBeenCalledWith(
+            expectedWarning(
+              '',
+              "Endpoint 'GET /test/deprecated-route' is deprecated"
+            )
+          );
+        });
+
+        it('should warn when a schema property contains deprecated: true', async () => {
+          await assertResponseMatchesOpenAPI({
+            specPath: 'tests/fixtures/mock-openapi.yaml',
+            path: '/test/deprecated-property',
+            method: 'GET',
+            status: 200,
+            body: {
+              activeField: 'active',
+              oldField: 'deprecated-value'
+            }
+          });
+
+          expect(warnSpy).toHaveBeenCalledWith(
+            expectedWarning('body.oldField', 'Schema property is deprecated')
+          );
+        });
+
+        it('should warn when a deprecated 204 endpoint is consumed with an empty body', async () => {
+          await assertResponseMatchesOpenAPI({
+            specPath: 'tests/fixtures/mock-openapi.yaml',
+            path: '/test/deprecated-no-content',
+            method: 'GET',
+            status: 204,
+            body: undefined
+          });
+
+          expect(warnSpy).toHaveBeenCalledWith(
+            expectedWarning(
+              '',
+              "Endpoint 'GET /test/deprecated-no-content' is deprecated"
+            )
+          );
+        });
+
+        it('should throw an error when response content is an empty object', async () => {
+          await expect(
+            assertResponseMatchesOpenAPI({
+              specPath: 'tests/fixtures/mock-openapi.yaml',
+              path: '/test/empty-content-map',
+              method: 'GET',
+              status: 200,
+              body: { message: 'hello' }
+            })
+          ).rejects.toThrow(
+            "Content-Type 'application/json' is not declared for GET /test/empty-content-map 200. No content declared in OpenAPI spec."
+          );
+        });
+
+        it('should isolate speculative warnings and only warn for successful/selected branches', async () => {
+          await assertResponseMatchesOpenAPI({
+            specPath: 'tests/fixtures/mock-openapi.yaml',
+            path: '/test/polymorphism/deprecated-anyof',
+            method: 'GET',
+            status: 200,
+            body: {
+              poly: {
+                successField: 'valid',
+                normalProp: 'value',
+                activeDeprecatedProp: 'this-should-warn',
+                deprecatedProp:
+                  'this-should-not-warn-because-speculative-branch-failed'
+              }
+            }
+          });
+
+          // activeDeprecatedProp is in the matching branch (Branch 2), so it should warn
+          expect(warnSpy).toHaveBeenCalledWith(
+            expectedWarning(
+              'body.poly.activeDeprecatedProp',
+              'Schema property is deprecated'
+            )
+          );
+
+          // deprecatedProp is in Branch 1 which failed requirements (failField was missing),
+          // so its warning should be isolated and discarded.
+          expect(warnSpy).not.toHaveBeenCalledWith(
+            expectedWarning(
+              'body.poly.deprecatedProp',
+              'Schema property is deprecated'
+            )
+          );
+        });
       });
     });
   });

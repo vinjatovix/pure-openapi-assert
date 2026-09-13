@@ -185,6 +185,38 @@ paths:
                           valB:
                             type: number
 
+  /test/polymorphism/deprecated-anyof:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [poly]
+                properties:
+                  poly:
+                    anyOf:
+                      - type: object
+                        required: [failField]
+                        properties:
+                          failField:
+                            type: string
+                          deprecatedProp:
+                            type: string
+                            deprecated: true
+                      - type: object
+                        required: [successField]
+                        properties:
+                          successField:
+                            type: string
+                          normalProp:
+                            type: string
+                          activeDeprecatedProp:
+                            type: string
+                            deprecated: true
+
   /test/polymorphism/oneof:
     get:
       responses:
@@ -574,6 +606,92 @@ paths:
                 properties:
                   poly:
                     $ref: '#/components/schemas/Shape'
+
+  /test/deprecated-route:
+    get:
+      deprecated: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /test/deprecated-property:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeField:
+                    type: string
+                  oldField:
+                    type: string
+                    deprecated: true
+
+  /test/content-type/xml:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/xml:
+              schema:
+                type: string
+
+  /test/content-type/binary:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+
+  /test/content-type/wildcard:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            'image/*':
+              schema:
+                type: string
+            'application/*+json':
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+  /test/no-content:
+    get:
+      responses:
+        '204':
+          description: No Content
+
+  /test/deprecated-no-content:
+    get:
+      deprecated: true
+      responses:
+        '204':
+          description: No Content
+
+  /test/empty-content-map:
+    get:
+      responses:
+        '200':
+          description: OK
+          content: {}
 
 components:
   schemas:

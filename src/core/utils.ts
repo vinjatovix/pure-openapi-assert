@@ -21,3 +21,27 @@ export function isSchemaObject(
 ): schema is OpenAPIV3.SchemaObject {
   return isPlainObject(schema) && !Object.hasOwn(schema, '$ref');
 }
+
+export function normalizeMediaType(mime: string): string {
+  return (mime.split(';')[0] || '').trim().toLowerCase();
+}
+
+export function isJson(type: string): boolean {
+  const normalized = normalizeMediaType(type);
+  return (
+    normalized === 'application/json' ||
+    (normalized.startsWith('application/') &&
+      (normalized.endsWith('/json') || normalized.endsWith('+json')))
+  );
+}
+
+export function isTextContentType(mime: string): boolean {
+  const normalized = normalizeMediaType(mime);
+  return (
+    normalized.startsWith('text/') ||
+    normalized === 'application/xml' ||
+    normalized === 'application/xhtml+xml' ||
+    normalized.endsWith('+xml') ||
+    normalized === 'application/csv'
+  );
+}

@@ -7,11 +7,11 @@ import {
   IPV4_REGEX,
   IPV6_REGEX,
   MAX_HOSTNAME_LENGTH,
-  MAX_CACHE_SIZE,
   UUID_REGEX
 } from '../core/constants.js';
+import { FIFOCache } from '../core/FIFOCache.js';
 
-const regexCache = new Map<string, RegExp>();
+const regexCache = new FIFOCache<string, RegExp>();
 
 /**
  * Compiles and caches a regular expression from an OpenAPI schema pattern.
@@ -25,10 +25,6 @@ const regexCache = new Map<string, RegExp>();
 export function getCachedRegex(pattern: string): RegExp {
   let rx = regexCache.get(pattern);
   if (!rx) {
-    if (regexCache.size >= MAX_CACHE_SIZE) {
-      const firstKey = regexCache.keys().next().value;
-      regexCache.delete(firstKey as string);
-    }
     rx = new RegExp(pattern);
     regexCache.set(pattern, rx);
   }

@@ -5,7 +5,7 @@ import {
   findSchemaByPointer
 } from '../../../src/validators/pointers.js';
 
-describe('Validators pointers.ts (Unit)', () => {
+describe('validators/pointers', () => {
   describe('resolvePointer', () => {
     it('should resolve standard JSON pointers', () => {
       const spec: OpenAPIV3.Document = {

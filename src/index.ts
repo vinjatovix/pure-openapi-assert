@@ -4,5 +4,6 @@ export {
 } from './assertions/assertResponseMatchesOpenAPI.js';
 export {
   ValidationContext,
-  type ValidationError
+  type ValidationIssue,
+  type IssueSeverity
 } from './core/ValidationContext.js';

@@ -9,7 +9,7 @@ import {
 import { contextMother } from '../../helpers/contextMother.js';
 import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 
-describe('Validators string (Unit)', () => {
+describe('validators/string', () => {
   let ctx: ReturnType<typeof contextMother.empty>;
 
   beforeEach(() => {
