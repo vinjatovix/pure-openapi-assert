@@ -557,6 +557,85 @@ describe('validators/number', () => {
       assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
     });
 
+    it('should support input value defined directly as native bigint', () => {
+      validateMinConstraint({
+        value: 9n,
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .minimum(10)
+          .build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
+
+      ctx = contextMother.empty();
+      validateMaxConstraint({
+        value: 11n,
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .maximum(10)
+          .build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'Value 11 is greater than maximum 10');
+
+      ctx = contextMother.empty();
+      validateMultipleOfConstraint({
+        value: 7n,
+        schema: new SchemaBuilder()
+          .type('string')
+          .format('int64')
+          .multipleOf(3)
+          .build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'Value 7 is not a multiple of 3');
+    });
+
+    it('should support native bigint with integer type in validateShape', () => {
+      validateShape({
+        value: 9n,
+        schema: new SchemaBuilder()
+          .type('integer')
+          .format('int64')
+          .minimum(10)
+          .build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
+
+      ctx = contextMother.empty();
+      validateShape({
+        value: 10n,
+        schema: new SchemaBuilder()
+          .type('integer')
+          .format('int64')
+          .minimum(10)
+          .build(),
+        ctx,
+        validateShape
+      });
+      assertValid(ctx);
+
+      ctx = contextMother.empty();
+      validateShape({
+        value: 9223372036854775808n, // Over INT64_MAX
+        schema: new SchemaBuilder().type('integer').format('int64').build(),
+        ctx,
+        validateShape
+      });
+      assertHasValidationError(
+        ctx,
+        'Value 9223372036854775808 exceeds 64-bit integer limits'
+      );
+    });
+
     it('should parse non-empty string bounds successfully in parseBigIntBound', () => {
       validateMinConstraint({
         value: '9',

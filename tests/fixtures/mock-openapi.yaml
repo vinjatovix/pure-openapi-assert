@@ -36,6 +36,46 @@ paths:
                     type: string
                     format: uri
 
+  /test/headers:
+    get:
+      summary: Endpoint to test header validation
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Required-Header:
+              required: true
+              schema:
+                type: string
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+                minimum: 0
+            X-Cache-Hit:
+              schema:
+                type: boolean
+            X-Custom-List:
+              schema:
+                type: array
+                items:
+                  type: integer
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required: [ foo ]
+                    properties:
+                      foo:
+                        type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
   /test/constraints/numbers:
     get:
       responses:
