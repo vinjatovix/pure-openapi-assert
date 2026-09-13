@@ -119,12 +119,19 @@ describe('core/ValidationContext', () => {
   });
 
   it('should support merging arrays of issues cleanly via addIssues', () => {
-    const ctx = new ValidationContext();
-    ctx.issues.push({
-      path: 'body.field1',
-      message: 'warn 1',
-      severity: 'warning'
-    });
+    const ctx = new ValidationContext(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          path: 'body.field1',
+          message: 'warn 1',
+          severity: 'warning'
+        }
+      ]
+    );
 
     ctx.addIssues([
       { path: 'body.field1', message: 'warn 1', severity: 'warning' }, // duplicate, should be ignored

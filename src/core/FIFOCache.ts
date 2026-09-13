@@ -5,6 +5,9 @@ export class FIFOCache<K, V> extends Map<K, V> {
 
   constructor(maxSize: number = MAX_CACHE_SIZE) {
     super();
+    if (maxSize <= 0) {
+      throw new Error('Cache size must be greater than 0');
+    }
     this.maxSize = maxSize;
   }
 

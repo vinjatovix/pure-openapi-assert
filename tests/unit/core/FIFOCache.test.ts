@@ -49,4 +49,13 @@ describe('core/FIFOCache', () => {
     expect(cache.has(0)).toBe(false);
     expect(cache.has(MAX_CACHE_SIZE)).toBe(true);
   });
+
+  it('should throw an error if maxSize is zero or negative', () => {
+    expect(() => new FIFOCache<string, number>(0)).toThrow(
+      'Cache size must be greater than 0'
+    );
+    expect(() => new FIFOCache<string, number>(-5)).toThrow(
+      'Cache size must be greater than 0'
+    );
+  });
 });

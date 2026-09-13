@@ -24,6 +24,7 @@ export class ValidationContext {
     Set<OpenAPIV3.SchemaObject>
   >;
   private readonly activePrimitivePolymorphism: Set<OpenAPIV3.SchemaObject>;
+  private readonly issueKeys = new Set<string>();
 
   constructor(
     public readonly spec?: OpenAPIV3.Document,
@@ -39,6 +40,15 @@ export class ValidationContext {
     this.activePrimitivePolymorphism =
       activePrimitivePolymorphism || new Set<OpenAPIV3.SchemaObject>();
     this.issues = issues || [];
+    for (const issue of this.issues) {
+      this.issueKeys.add(this.getIssueKey(issue));
+    }
+  }
+
+  private getIssueKey(
+    issue: Pick<ValidationIssue, 'path' | 'message' | 'severity'>
+  ): string {
+    return `${issue.path}::${issue.severity}::${issue.message}`;
   }
 
   get errors(): readonly ValidationIssue[] {
@@ -127,12 +137,7 @@ export class ValidationContext {
   private hasIssue(
     issue: Pick<ValidationIssue, 'path' | 'message' | 'severity'>
   ): boolean {
-    return this.issues.some(
-      (existing) =>
-        existing.path === issue.path &&
-        existing.message === issue.message &&
-        existing.severity === issue.severity
-    );
+    return this.issueKeys.has(this.getIssueKey(issue));
   }
 
   addIssue(
@@ -149,6 +154,7 @@ export class ValidationContext {
     };
     if (!this.hasIssue(newIssue)) {
       this.issues.push(newIssue);
+      this.issueKeys.add(this.getIssueKey(newIssue));
     }
   }
 
@@ -164,6 +170,7 @@ export class ValidationContext {
     for (const issue of newIssues) {
       if (!this.hasIssue(issue)) {
         this.issues.push(issue);
+        this.issueKeys.add(this.getIssueKey(issue));
       }
     }
   }

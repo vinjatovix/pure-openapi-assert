@@ -1460,14 +1460,14 @@ describe('assertResponseMatchesOpenAPI', () => {
     });
 
     describe('HTTP 204 Early Validation', () => {
-      const specPath = 'tests/fixtures/mock-openapi.yaml';
-      const path = '/test/no-content';
+      const realSpecPath = 'tests/fixtures/mock-openapi.yaml';
+      const realPath = '/test/no-content';
 
       it('should pass if 204 status has an undefined body', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath,
-            path,
+            specPath: realSpecPath,
+            path: realPath,
             method: 'GET',
             status: 204,
             body: undefined
@@ -1478,8 +1478,8 @@ describe('assertResponseMatchesOpenAPI', () => {
       it('should pass if 204 status has a null body', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath,
-            path,
+            specPath: realSpecPath,
+            path: realPath,
             method: 'GET',
             status: 204,
             body: null
@@ -1490,8 +1490,8 @@ describe('assertResponseMatchesOpenAPI', () => {
       it('should pass if 204 status has an empty object body', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath,
-            path,
+            specPath: realSpecPath,
+            path: realPath,
             method: 'GET',
             status: 204,
             body: {}
@@ -1499,11 +1499,11 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).resolves.not.toThrow();
       });
 
-      it('should throw if 204 status has a non-empty body', async () => {
+      it('should throw if 204 status has a non-empty body (proves fast-path error prioritization without loading spec)', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath,
-            path,
+            specPath: 'any-non-existent-spec.yaml',
+            path: '/any-path',
             method: 'GET',
             status: 204,
             body: { hasContent: true }
@@ -1511,16 +1511,28 @@ describe('assertResponseMatchesOpenAPI', () => {
         ).rejects.toThrow('204 must have empty body');
       });
 
-      it('should throw if 204 status has a non-empty string body', async () => {
+      it('should throw if 204 status has a non-empty string body (proves fast-path error prioritization without loading spec)', async () => {
         await expect(
           assertResponseMatchesOpenAPI({
-            specPath,
-            path,
+            specPath: 'any-non-existent-spec.yaml',
+            path: '/any-path',
             method: 'GET',
             status: 204,
             body: 'non-empty-string'
           })
         ).rejects.toThrow('204 must have empty body');
+      });
+
+      it('should throw if 204 status has an empty body but the path does not exist in the spec (proves BDD routing validation)', async () => {
+        await expect(
+          assertResponseMatchesOpenAPI({
+            specPath: realSpecPath,
+            path: '/non-existent-route-path',
+            method: 'GET',
+            status: 204,
+            body: undefined
+          })
+        ).rejects.toThrow('Path not found in OpenAPI');
       });
     });
 

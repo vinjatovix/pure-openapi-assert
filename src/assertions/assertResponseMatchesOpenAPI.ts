@@ -122,6 +122,12 @@ export async function assertResponseMatchesOpenAPI(
     customFormats
   } = input;
 
+  if (status === HTTP_STATUS_NO_CONTENT && !isResponseBodyEmpty(body)) {
+    const ctx = new ValidationContext();
+    ctx.addError(`${HTTP_STATUS_NO_CONTENT} must have empty body`);
+    handleValidationErrors({ ctx, method, reqPath, status });
+  }
+
   const spec = await loadSpec(specPath);
   const actualContentType =
     contentType ||
@@ -139,6 +145,11 @@ export async function assertResponseMatchesOpenAPI(
 
   if (operation.deprecated) {
     ctx.addWarning(`Endpoint '${method} ${reqPath}' is deprecated`);
+  }
+
+  if (status === HTTP_STATUS_NO_CONTENT) {
+    printWarnings(ctx);
+    return;
   }
 
   validateResponseBody({
