@@ -14,7 +14,7 @@ export const typeValidators: Record<
 > = {
   string: (val) => typeof val === 'string',
   number: (val) => typeof val === 'number' && Number.isFinite(val),
-  integer: (val) => Number.isInteger(val),
+  integer: (val) => Number.isInteger(val) || typeof val === 'bigint',
   boolean: (val) => typeof val === 'boolean'
 };
 
@@ -108,7 +108,7 @@ export function validateBaseType(args: ValidationArgs): void {
     ) {
       validateNumberFormatConstraint(args);
     }
-  } else if (typeof value === 'number') {
+  } else if (typeof value === 'number' || typeof value === 'bigint') {
     validateNumberConstraints(args);
   } else {
     if (

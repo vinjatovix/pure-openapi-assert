@@ -1,6 +1,5 @@
-import type { OpenAPIV3 } from 'openapi-types';
 import { CycleTracker, CYCLE_DETECTED } from '../core/CycleTracker.js';
-import { isPrimitive, isSchemaObject } from '../core/utils.js';
+import { isPrimitive, isSchemaObject, isArraySchema } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 
 function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
@@ -88,8 +87,10 @@ function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
 
 function validateArrayItems(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx, validateShape, customFormats } = args;
-  const arraySchema = schema as OpenAPIV3.ArraySchemaObject;
-  const itemsSchema: unknown = arraySchema.items;
+  if (!isArraySchema(schema)) {
+    return;
+  }
+  const itemsSchema: unknown = schema.items;
   if (!isSchemaObject(itemsSchema)) {
     return;
   }

@@ -214,7 +214,10 @@ function extractSchemaFromOperation(
 ): {
   schema: OpenAPIV3.SchemaObject | null;
   operation: OpenAPIV3.OperationObject;
-  matchedContentType?: string;
+  matchedContentType?: string | undefined;
+  declaredHeaders?:
+    | Record<string, OpenAPIV3.HeaderObject | OpenAPIV3.ReferenceObject>
+    | undefined;
 } {
   const { operation, status, method, reqPath, contentType } = options;
   const response = getResponseObject(operation, status) as
@@ -224,13 +227,15 @@ function extractSchemaFromOperation(
     throw new Error(`Response not found: ${method} ${reqPath} ${status}`);
   }
 
+  const declaredHeaders = response.headers;
+
   if (!response.content) {
     if (contentType) {
       throw new Error(
         `Content-Type '${contentType}' is not declared for ${method} ${reqPath} ${status}. No content declared in OpenAPI spec.`
       );
     }
-    return { schema: null, operation };
+    return { schema: null, operation, declaredHeaders };
   }
 
   const actualContentType = contentType || DEFAULT_CONTENT_TYPE;
@@ -245,7 +250,8 @@ function extractSchemaFromOperation(
   return {
     schema,
     operation,
-    matchedContentType
+    matchedContentType,
+    declaredHeaders
   };
 }
 
@@ -260,7 +266,10 @@ interface GetResponseSchemaOptions {
 export function getResponseSchema(options: GetResponseSchemaOptions): {
   schema: OpenAPIV3.SchemaObject | null;
   operation: OpenAPIV3.OperationObject;
-  matchedContentType?: string;
+  matchedContentType?: string | undefined;
+  declaredHeaders?:
+    | Record<string, OpenAPIV3.HeaderObject | OpenAPIV3.ReferenceObject>
+    | undefined;
 } {
   const { spec, path, method, status, contentType } = options;
   const pathWithoutQueryParams = extractPathnameWithoutQueryParams(path);

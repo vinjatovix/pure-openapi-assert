@@ -384,6 +384,43 @@ describe('openapi/router', () => {
   });
 
   describe('getResponseSchema - Specific Behaviors', () => {
+    it('should extract declared headers from the response spec', () => {
+      const spec = new DocumentBuilder()
+        .withPaths({
+          '/users': {
+            get: {
+              responses: {
+                '200': {
+                  description: 'OK',
+                  headers: {
+                    'X-RateLimit-Limit': {
+                      schema: { type: 'integer' }
+                    }
+                  },
+                  content: {
+                    'application/json': { schema: { type: 'object' } }
+                  }
+                }
+              }
+            }
+          }
+        })
+        .build();
+
+      const result = getResponseSchema({
+        spec,
+        path: '/users',
+        method: 'GET',
+        status: 200,
+        contentType: 'application/json'
+      });
+
+      expect(result.declaredHeaders).toBeDefined();
+      expect(result.declaredHeaders?.['X-RateLimit-Limit']).toEqual({
+        schema: { type: 'integer' }
+      });
+    });
+
     it('should throw when the response content is missing and contentType is provided', () => {
       const spec = new DocumentBuilder()
         .withPaths({
