@@ -7,6 +7,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
       exclude: [
         'dist/**',
         'eslint.config.js',
