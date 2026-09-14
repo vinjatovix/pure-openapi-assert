@@ -51,11 +51,11 @@ describe('openapi/loader', () => {
     vi.mocked(SwaggerParser).dereference.mockResolvedValueOnce(validSpec);
 
     const spec1 = await loadSpec('dummy-cached.yaml');
-    expect(spec1).toBe(validSpec);
-
-    // This second call should hit the cache and not call dereference again
     const spec2 = await loadSpec('dummy-cached.yaml');
+    const parserMock = vi.mocked(SwaggerParser).dereference;
+
+    expect(spec1).toBe(validSpec);
     expect(spec2).toBe(validSpec);
-    expect(vi.mocked(SwaggerParser).dereference).toHaveBeenCalledTimes(1);
+    expect(parserMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: Default Responses and Custom Edge Cases Mock
+  version: 1.0.0
+paths:
+  /test/default:
+    get:
+      responses:
+        '200':
+          description: OK with specific structure
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        default:
+          description: Default response fallback (e.g. for errors)
+          headers:
+            X-Error-Header:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message]
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+
+  /test/empty-success:
+    post:
+      responses:
+        '201':
+          description: Empty 201 Created response
+        '202':
+          description: Empty 202 Accepted response

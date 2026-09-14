@@ -1,0 +1,494 @@
+openapi: 3.0.3
+info:
+  title: Mock API for Header Coercion and Precision Tests
+  version: 1.0.0
+paths:
+  /test-headers:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Duplicate:
+              schema:
+                type: array
+                items:
+                  type: string
+            X-Bool:
+              schema:
+                type: boolean
+            X-Array:
+              schema:
+                type: array
+                items:
+                  type: integer
+            X-String:
+              schema:
+                type: string
+            X-No-Schema:
+              content:
+                application/json: {}
+            X-Empty:
+              {}
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-circular-array-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Circular-Array:
+              schema:
+                $ref: '#/components/schemas/CircularArray'
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-circular-composed-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Circular-Composed:
+              schema:
+                $ref: '#/components/schemas/CircularComposed'
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-int64-enum-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Int64-Header:
+              schema:
+                type: integer
+                format: int64
+                enum: [9007199254740991] # Safe integer boundary to prevent js-yaml loader precision loss
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-composed-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Integer-Header:
+              schema:
+                oneOf:
+                  - type: integer
+                  - type: boolean
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-dry-run-fallback-to-string:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Composed-Header:
+              schema:
+                oneOf:
+                  - type: integer
+                    minimum: 10
+                  - type: string
+                    enum: ['3']
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-dry-run-coerce-to-integer:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Composed-Header:
+              schema:
+                oneOf:
+                  - type: integer
+                    minimum: 1
+                  - type: string
+                    pattern: '^[a-z]+$'
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-dry-run-ref-discriminator:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Discriminated-Header:
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/components/schemas/DiscriminatedOptionA'
+                      - $ref: '#/components/schemas/DiscriminatedOptionB'
+                    discriminator:
+                      propertyName: type
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-all-of-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-AllOf-Header:
+              schema:
+                allOf:
+                  - minimum: 10
+                  - type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-content-large-integer:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: integer
+                    format: int64
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-large-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Large-Int:
+              schema:
+                type: integer
+                minimum: 9007199254740990
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-large-header-fail:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Large-Int:
+              schema:
+                type: integer
+                minimum: 9007199254740991
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-large-float-header:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Large-Float:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-precision-coercion:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Integer-Precision:
+              schema:
+                type: integer
+            X-Number-Precision:
+              schema:
+                type: number
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-204:
+    post:
+      responses:
+        '204':
+          description: No Content
+
+  /test-int64-overflow:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Int64-Header:
+              schema:
+                type: integer
+                format: int64
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-int64-underflow:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Int64-Header:
+              schema:
+                type: integer
+                format: int64
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-mixed-allof-oneof:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Mixed-Header:
+              schema:
+                allOf:
+                  - minimum: 5
+                oneOf:
+                  - type: integer
+                  - type: boolean
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-csv-edge:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-CSV:
+              schema:
+                type: array
+                items:
+                  type: string
+                  enum:
+                    - 'a'
+                    - 'b'
+                    - 'c'
+                    - 'C:\path\to\file'
+                    - 'D:\other'
+                    - 'a , b'
+                    - 'hello world'
+                    - 'other'
+                    - '  a  '
+                    - 'a,b'
+                    - 'a,"b'
+                    - 'a,b,c'
+                    - 'a"b'
+                    - ''
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-array-ref:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Ref-Array:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RefInteger'
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-json-number:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: integer
+                    format: int64
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-json-float:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: number
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-json-boolean:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: boolean
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-json-array:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      type: integer
+                      format: int64
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /test-json-object:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-JSON-Header:
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        format: int64
+                      nested:
+                        type: array
+                        items:
+                          type: integer
+                          format: int64
+                      url:
+                        type: string
+                        pattern: '^http://example.com/items/\[\d+\]$'
+                      val:
+                        type: number
+                      text:
+                        type: string
+                        enum:
+                          - 'My "9007199254740993" item'
+                          - '__bigint__9007199254740993'
+                      desc:
+                        type: string
+                        pattern: '^Line1\nLine2 with \d+$'
+                      name:
+                        type: string
+                        enum:
+                          - 'Español 😎'
+                      a:
+                        type: array
+                        items:
+                          type: integer
+                          format: int64
+                    additionalProperties: true
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  schemas:
+    DiscriminatedOptionA:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ['A']
+        valueA:
+          type: integer
+      required: ['type', 'valueA']
+    DiscriminatedOptionB:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ['B']
+        valueB:
+          type: integer
+      required: ['type', 'valueB']
+    RefInteger:
+      type: integer
+    CircularArray:
+      type: array
+      items:
+        $ref: '#/components/schemas/CircularArray'
+    CircularComposed:
+      allOf:
+        - $ref: '#/components/schemas/CircularComposed'
+        - type: integer

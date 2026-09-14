@@ -16,10 +16,22 @@ export function isPrimitive(val: unknown): val is string | number | boolean {
   );
 }
 
+export function isReferenceObject(
+  obj: unknown
+): obj is OpenAPIV3.ReferenceObject {
+  return isPlainObject(obj) && Object.hasOwn(obj, '$ref');
+}
+
 export function isSchemaObject(
   schema: unknown
 ): schema is OpenAPIV3.SchemaObject {
-  return isPlainObject(schema) && !Object.hasOwn(schema, '$ref');
+  return isPlainObject(schema) && !isReferenceObject(schema);
+}
+
+export function isArraySchema(
+  schema: OpenAPIV3.SchemaObject
+): schema is OpenAPIV3.ArraySchemaObject {
+  return schema.type === 'array';
 }
 
 export function normalizeMediaType(mime: string): string {
@@ -43,5 +55,16 @@ export function isTextContentType(mime: string): boolean {
     normalized === 'application/xhtml+xml' ||
     normalized.endsWith('+xml') ||
     normalized === 'application/csv'
+  );
+}
+
+export function safeStringify(value: unknown): string {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  return (
+    JSON.stringify(value, (_, v: unknown) =>
+      typeof v === 'bigint' ? v.toString() : v
+    ) || 'undefined'
   );
 }

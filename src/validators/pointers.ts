@@ -6,6 +6,7 @@ import {
 } from '../core/constants.js';
 import { FIFOCache } from '../core/FIFOCache.js';
 import { isSchemaObject } from '../core/utils.js';
+import { ValidationContext } from '../core/ValidationContext.js';
 
 const pointerCache = new WeakMap<object, FIFOCache<string, unknown>>();
 const schemaPointerMatchCache = new WeakMap<
@@ -150,4 +151,34 @@ export function findSchemaByPointer(args: {
   cache.set(pointer, match);
 
   return match;
+}
+
+export function resolveSchema(
+  schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject | undefined,
+  ctx?: ValidationContext
+): OpenAPIV3.SchemaObject | undefined {
+  if (!schema) {
+    return undefined;
+  }
+
+  if (isSchemaObject(schema)) {
+    return schema;
+  }
+
+  if (ctx?.spec) {
+    const resolved = resolvePointer(ctx.spec, schema.$ref);
+    if (isSchemaObject(resolved)) {
+      return resolved;
+    }
+  }
+
+  const refMsg = `Unresolved $ref: '${schema.$ref}'. Ensure your OpenAPI spec is fully dereferenced.`;
+
+  if (ctx) {
+    ctx.addError(refMsg);
+  } else {
+    throw new Error(refMsg);
+  }
+
+  return undefined;
 }

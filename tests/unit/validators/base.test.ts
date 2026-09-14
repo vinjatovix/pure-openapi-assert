@@ -114,6 +114,19 @@ describe('validators/base', () => {
       assertHasValidationError(ctx, 'Expected one of [admin, user]');
     });
 
+    it('validateEnum should support bigint and format error message without throwing', () => {
+      const schema = new SchemaBuilder().type('integer').enum([1n, 2n]).build();
+
+      validateEnum({
+        value: 3n,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Expected one of [1, 2], received 3');
+    });
+
     it('validateConst should use strict identity checking', () => {
       const schema = new SchemaBuilder().type('number').const(42).build();
       validateConst({
@@ -124,6 +137,19 @@ describe('validators/base', () => {
       });
 
       assertValid(ctx);
+    });
+
+    it('validateConst should support bigint and format error message without throwing', () => {
+      const schema = new SchemaBuilder().type('integer').const(42n).build();
+
+      validateConst({
+        value: 43n,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Expected exactly 42, received 43');
     });
   });
 

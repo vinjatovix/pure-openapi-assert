@@ -1,0 +1,67 @@
+openapi: 3.0.3
+info:
+  title: Nested Objects and Routing OpenAPI Mock
+  version: 1.0.0
+paths:
+  /test/nested:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, tags]
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                        aliases:
+                          type: array
+                          nullable: true
+                          items:
+                            type: string
+                        metadata:
+                          type: object
+                          nullable: true
+                          required: [creator, version]
+                          properties:
+                            creator:
+                              type: string
+                            version:
+                              type: number
+                  pagination:
+                    type: object
+                    required: [total]
+                    properties:
+                      total:
+                        type: integer
+
+  /test/dynamic/{id}:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string

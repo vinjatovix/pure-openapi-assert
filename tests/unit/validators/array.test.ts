@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 import { validateShape } from '../../../src/validators/shape.js';
 import { validateArray } from '../../../src/validators/type-validators.js';
@@ -167,6 +167,60 @@ describe('validators/array', () => {
       });
 
       assertHasValidationError(ctx, 'Array elements must be unique');
+    });
+
+    it('should correctly handle uniqueItems containing bigint', () => {
+      const value = [1n, 2n, 1n];
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
+
+      validateArray({
+        value,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Array elements must be unique');
+    });
+
+    it('should correctly handle object uniqueness containing bigint', () => {
+      const value = [{ x: 1n }, { x: 2n }, { x: 1n }];
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
+
+      validateArray({
+        value,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Array elements must be unique');
+    });
+
+    it('should distinguish between number and bigint values in nested object uniqueItems comparison', () => {
+      const value = [{ x: 1 }, { x: 1n }];
+      const schema = new SchemaBuilder()
+        .type('array')
+        .uniqueItems(true)
+        .items(schemaMother.empty())
+        .build();
+
+      validateArray({
+        value,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
     });
 
     it('should not confuse a string value "[Circular]" with an actual circular reference (no collision)', () => {
