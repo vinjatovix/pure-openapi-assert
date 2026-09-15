@@ -1,0 +1,42 @@
+openapi: 3.0.0
+info:
+  title: Complex Negation Test Spec
+  version: 1.0.0
+paths:
+  /test-complex:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  amount:
+                    type: integer
+                    not:
+                      minimum: 0
+                  info:
+                    type: object
+                    not:
+                      required:
+                        - secret
+                  doubleNegation:
+                    not:
+                      not:
+                        type: string
+                  recursiveSchema:
+                    not:
+                      $ref: '#/components/schemas/Recursive'
+components:
+  schemas:
+    Recursive:
+      type: object
+      properties:
+        value:
+          type: string
+        next:
+          $ref: '#/components/schemas/Recursive'

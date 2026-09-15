@@ -374,8 +374,11 @@ function coerceOneOfAnyOfHeaderValue(
   args: CoerceComposedHeaderValueArgs,
   initialValue: unknown
 ): unknown {
-  const { schema, tracker, customFormats, ctx } = args;
-  const subSchemas = [...(schema.oneOf || []), ...(schema.anyOf || [])];
+  const { schema: parentSchema, tracker, customFormats, ctx } = args;
+  const subSchemas = [
+    ...(parentSchema.oneOf || []),
+    ...(parentSchema.anyOf || [])
+  ];
 
   if (subSchemas.length > 0) {
     for (const sub of subSchemas) {
@@ -391,7 +394,7 @@ function coerceOneOfAnyOfHeaderValue(
         const tempCtx = new ValidationContext(ctx?.spec);
         validateShape({
           value: candidateCoerced,
-          schema, // Validate against the full parent schema to capture sibling and top-level constraints
+          schema: parentSchema,
           ctx: tempCtx,
           validateShape,
           customFormats
@@ -406,11 +409,67 @@ function coerceOneOfAnyOfHeaderValue(
   return initialValue;
 }
 
+function tryIsolateNotCoercion(
+  args: CoerceComposedHeaderValueArgs,
+  coerced: unknown
+): unknown {
+  const { schema: parentSchema, tracker, customFormats, ctx } = args;
+  if (!parentSchema.not) {
+    return coerced;
+  }
+
+  if (parentSchema.oneOf || parentSchema.anyOf) {
+    const tempCtx = new ValidationContext(ctx?.spec);
+    validateShape({
+      value: coerced,
+      schema: parentSchema,
+      ctx: tempCtx,
+      validateShape,
+      customFormats
+    });
+    if (!tempCtx.hasErrors()) {
+      return coerced;
+    }
+  }
+
+  const resolvedNot = resolveSchema(parentSchema.not, ctx);
+  if (!resolvedNot) {
+    return coerced;
+  }
+
+  const candidateCoerced = coerceHeaderValue({
+    value: coerced,
+    schema: resolvedNot,
+    tracker,
+    customFormats,
+    ctx
+  });
+
+  const parentSchemaWithoutNot = { ...parentSchema };
+  delete parentSchemaWithoutNot.not;
+
+  const tempCtx = new ValidationContext(ctx?.spec);
+  validateShape({
+    value: candidateCoerced,
+    schema: parentSchemaWithoutNot,
+    ctx: tempCtx,
+    validateShape,
+    customFormats
+  });
+
+  if (tempCtx.hasErrors()) {
+    return coerced;
+  }
+
+  return candidateCoerced;
+}
+
 function coerceComposedHeaderValue(
   args: CoerceComposedHeaderValueArgs
 ): unknown {
   let coerced = coerceAllOfHeaderValue(args, args.value);
   coerced = coerceOneOfAnyOfHeaderValue(args, coerced);
+  coerced = tryIsolateNotCoercion(args, coerced);
   return coerced;
 }
 

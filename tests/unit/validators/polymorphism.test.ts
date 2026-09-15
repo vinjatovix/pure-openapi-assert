@@ -82,9 +82,10 @@ describe('validators/polymorphism', () => {
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
+      const valueFailingStringTypeCheck = 123;
 
       checkPolymorphism({
-        value: 123, // Passing number fails string type check in real validateShape
+        value: valueFailingStringTypeCheck,
         schema: new SchemaBuilder().anyOf(unresolvedRef, stringSchema).build(),
         ctx,
         validateShape
@@ -99,9 +100,10 @@ describe('validators/polymorphism', () => {
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
+      const valueFailingStringTypeCheck = 123;
 
       checkPolymorphism({
-        value: 123, // Passing number fails string type check in real validateShape
+        value: valueFailingStringTypeCheck,
         schema: new SchemaBuilder().oneOf(unresolvedRef, stringSchema).build(),
         ctx,
         validateShape
