@@ -285,6 +285,41 @@ describe('coercion utility unit tests', () => {
         expect(result).toEqual([1, 2, 3]);
       });
     });
+
+    describe('Negated Schema Coercion Isolation', () => {
+      it('should isolate coercion within the not schema and prevent leakage to outer type-constrained scopes', () => {
+        const schema: OpenAPIV3.SchemaObject = {
+          type: 'string',
+          allOf: [{ minLength: 1 }],
+          not: { type: 'integer' }
+        };
+
+        const result = coerceHeaderValue({ value: '123', schema });
+
+        expect(result).toBe('123');
+      });
+
+      it('should still allow coercion for untyped outer schemas', () => {
+        const schema: OpenAPIV3.SchemaObject = {
+          not: { type: 'integer' }
+        };
+
+        const result = coerceHeaderValue({ value: '123', schema });
+
+        expect(result).toBe(123);
+      });
+
+      it('should preserve and not overwrite a selected composition candidate when applying negation isolation', () => {
+        const schema: OpenAPIV3.SchemaObject = {
+          oneOf: [{ type: 'integer' }, { type: 'string' }],
+          not: { type: 'integer' }
+        };
+
+        const result = coerceHeaderValue({ value: '123', schema });
+
+        expect(result).toBe('123');
+      });
+    });
   });
 
   describe('normalizeHeaders', () => {

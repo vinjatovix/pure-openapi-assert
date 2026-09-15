@@ -624,8 +624,9 @@ describe('validators/number', () => {
       assertValid(ctx);
 
       ctx = contextMother.empty();
+      const valueExceedingInt64Max = 9223372036854775808n;
       validateShape({
-        value: 9223372036854775808n, // Over INT64_MAX
+        value: valueExceedingInt64Max,
         schema: new SchemaBuilder().type('integer').format('int64').build(),
         ctx,
         validateShape
@@ -834,8 +835,9 @@ describe('validators/number', () => {
       assertValid(ctx);
 
       ctx = contextMother.empty();
+      const valueExceedingInt32Max = 2147483648n;
       validateShape({
-        value: 2147483648n, // INT32_MAX + 1
+        value: valueExceedingInt32Max,
         schema: new SchemaBuilder().type('integer').format('int32').build(),
         ctx,
         validateShape
@@ -846,8 +848,9 @@ describe('validators/number', () => {
       );
 
       ctx = contextMother.empty();
+      const valueBelowInt32Min = -2147483649n;
       validateShape({
-        value: -2147483649n, // INT32_MIN - 1
+        value: valueBelowInt32Min,
         schema: new SchemaBuilder().type('integer').format('int32').build(),
         ctx,
         validateShape

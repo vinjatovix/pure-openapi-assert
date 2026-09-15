@@ -24,6 +24,11 @@ export class ValidationContext {
     Set<OpenAPIV3.SchemaObject>
   >;
   private readonly activePrimitivePolymorphism: Set<OpenAPIV3.SchemaObject>;
+  private readonly activeObjectNegations: WeakMap<
+    object,
+    Set<OpenAPIV3.SchemaObject>
+  >;
+  private readonly activePrimitiveNegations: Set<OpenAPIV3.SchemaObject>;
   private readonly issueKeys = new Set<string>();
 
   constructor(
@@ -31,7 +36,9 @@ export class ValidationContext {
     visited?: Set<object>,
     activeObjectPolymorphism?: WeakMap<object, Set<OpenAPIV3.SchemaObject>>,
     activePrimitivePolymorphism?: Set<OpenAPIV3.SchemaObject>,
-    issues?: ValidationIssue[]
+    issues?: ValidationIssue[],
+    activeObjectNegations?: WeakMap<object, Set<OpenAPIV3.SchemaObject>>,
+    activePrimitiveNegations?: Set<OpenAPIV3.SchemaObject>
   ) {
     this.visited = visited || new Set<object>();
     this.activeObjectPolymorphism =
@@ -40,6 +47,11 @@ export class ValidationContext {
     this.activePrimitivePolymorphism =
       activePrimitivePolymorphism || new Set<OpenAPIV3.SchemaObject>();
     this.issues = issues || [];
+    this.activeObjectNegations =
+      activeObjectNegations ||
+      new WeakMap<object, Set<OpenAPIV3.SchemaObject>>();
+    this.activePrimitiveNegations =
+      activePrimitiveNegations || new Set<OpenAPIV3.SchemaObject>();
     for (const issue of this.issues) {
       this.issueKeys.add(this.getIssueKey(issue));
     }
@@ -64,7 +76,10 @@ export class ValidationContext {
       this.spec,
       new Set<object>(this.visited),
       this.activeObjectPolymorphism,
-      new Set<OpenAPIV3.SchemaObject>(this.activePrimitivePolymorphism)
+      new Set<OpenAPIV3.SchemaObject>(this.activePrimitivePolymorphism),
+      undefined,
+      this.activeObjectNegations,
+      new Set<OpenAPIV3.SchemaObject>(this.activePrimitiveNegations)
     );
     child.currentPath = this.currentPath;
     return child;
@@ -98,6 +113,39 @@ export class ValidationContext {
       fn();
     } finally {
       active.delete(schema);
+    }
+  }
+
+  public hasActiveNegation(
+    value: unknown,
+    schema: OpenAPIV3.SchemaObject
+  ): boolean {
+    if (isPlainObject(value) || Array.isArray(value)) {
+      const active = this.activeObjectNegations.get(value);
+      return active?.has(schema) ?? false;
+    }
+    return this.activePrimitiveNegations.has(schema);
+  }
+
+  public pushNegation(value: unknown, schema: OpenAPIV3.SchemaObject): void {
+    if (isPlainObject(value) || Array.isArray(value)) {
+      let active = this.activeObjectNegations.get(value);
+      if (!active) {
+        active = new Set<OpenAPIV3.SchemaObject>();
+        this.activeObjectNegations.set(value, active);
+      }
+      active.add(schema);
+    } else {
+      this.activePrimitiveNegations.add(schema);
+    }
+  }
+
+  public popNegation(value: unknown, schema: OpenAPIV3.SchemaObject): void {
+    if (isPlainObject(value) || Array.isArray(value)) {
+      const active = this.activeObjectNegations.get(value);
+      active?.delete(schema);
+    } else {
+      this.activePrimitiveNegations.delete(schema);
     }
   }
 

@@ -208,6 +208,13 @@ export class SchemaBuilder {
     return this;
   }
 
+  not(
+    schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject | SchemaBuilder
+  ): this {
+    this.schema.not = schema instanceof SchemaBuilder ? schema.build() : schema;
+    return this;
+  }
+
   build(): OpenAPIV3.SchemaObject {
     return this.schema as OpenAPIV3.SchemaObject;
   }

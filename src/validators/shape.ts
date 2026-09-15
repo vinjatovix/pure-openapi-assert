@@ -1,4 +1,6 @@
+import { isPlainObject } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
+import { resolveSchema } from './pointers.js';
 import { checkPolymorphism } from './polymorphism.js';
 import {
   validateArray,
@@ -17,7 +19,25 @@ const validators: Record<string, (args: ValidationArgs) => void> = {
   object: validateObject
 };
 
-export function validateShape(args: ValidationArgs): void {
+function shouldStopOnNullValue(
+  value: unknown,
+  schema: ValidationArgs['schema'],
+  ctx: ValidationArgs['ctx']
+): boolean {
+  if (value !== null) {
+    return false;
+  }
+  const isConstrainlessSchema = Object.keys(schema).length === 0;
+  if (isConstrainlessSchema) {
+    return false;
+  }
+  if (!schema.nullable) {
+    ctx.addError('Field is not nullable but received null');
+  }
+  return true;
+}
+
+function preValidate(args: ValidationArgs): boolean {
   const { value, schema, ctx } = args;
 
   if (schema.deprecated) {
@@ -26,18 +46,70 @@ export function validateShape(args: ValidationArgs): void {
 
   if (schema.writeOnly && value !== undefined) {
     ctx.addError('Field is writeOnly and must not be present in the response');
-    return;
+    return false;
   }
 
-  if (value === null) {
-    if (!schema.nullable) {
-      ctx.addError('Field is not nullable but received null');
-    }
-    return;
+  if (shouldStopOnNullValue(value, schema, ctx)) {
+    return false;
   }
 
   if (value === undefined) {
     ctx.addError('Field is required but received undefined');
+    return false;
+  }
+
+  return true;
+}
+
+function validateNotConstraint(args: ValidationArgs): void {
+  const { schema, ctx, value } = args;
+  if (schema.not === undefined) {
+    return;
+  }
+
+  const resolvedNot = resolveSchema(schema.not, ctx);
+  if (!resolvedNot) {
+    return;
+  }
+
+  if (ctx.hasActiveNegation(value, resolvedNot)) {
+    ctx.addError('Cyclic not schema detected');
+    return;
+  }
+
+  ctx.pushNegation(value, resolvedNot);
+  try {
+    const childCtx = ctx.createChildContext();
+    childCtx.visited.clear();
+    validateShape({
+      ...args,
+      schema: resolvedNot,
+      ctx: childCtx
+    });
+
+    const resolutionErrors = childCtx.issues.filter(
+      (issue) =>
+        issue.message.includes('Unresolved $ref') ||
+        issue.message.includes('Cyclic not schema')
+    );
+    if (resolutionErrors.length > 0) {
+      ctx.addIssues(resolutionErrors);
+      return;
+    }
+
+    if (!childCtx.hasErrors()) {
+      ctx.addError('Value matches prohibited schema');
+    }
+  } finally {
+    ctx.popNegation(value, resolvedNot);
+  }
+}
+
+export function validateShape(args: ValidationArgs): void {
+  const { schema } = args;
+  validateNotConstraint(args);
+
+  if (!preValidate(args)) {
     return;
   }
 
@@ -46,7 +118,16 @@ export function validateShape(args: ValidationArgs): void {
 
   checkPolymorphism(args);
 
-  const validator = schema.type ? validators[schema.type] : undefined;
+  const { value } = args;
+  let validator = schema.type ? validators[schema.type] : undefined;
+  if (!validator) {
+    if (Array.isArray(value)) {
+      validator = validateArray;
+    } else if (isPlainObject(value)) {
+      validator = validateObject;
+    }
+  }
+
   if (validator) {
     validator(args);
   } else {
