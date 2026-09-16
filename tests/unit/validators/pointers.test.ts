@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 import {
   resolvePointer,
-  findSchemaByPointer
+  findSchemaByPointer,
+  resolveSchema
 } from '../../../src/validators/pointers.js';
 
 describe('validators/pointers', () => {
@@ -386,6 +387,52 @@ describe('validators/pointers', () => {
         schemas: [targetSchema]
       });
       expect(result).toBe(targetSchema);
+    });
+  });
+
+  describe('resolveSchema', () => {
+    it('should return undefined when schema is falsy (T003)', () => {
+      const result = resolveSchema(undefined);
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should throw an error on unresolved $ref when ctx is falsy (T004)', () => {
+      const schema = { $ref: '#/components/schemas/Invalid' };
+
+      expect(() => resolveSchema(schema)).toThrow(
+        "Unresolved $ref: '#/components/schemas/Invalid'"
+      );
+    });
+
+    it('should match schema on title when titles are equal but objects are not deep strict equal (T015)', () => {
+      const spec: OpenAPIV3.Document = {
+        openapi: '3.0.0',
+        info: { title: 'Spec', version: '1.0.0' },
+        paths: {},
+        components: {
+          schemas: {
+            User: {
+              type: 'object',
+              title: 'User',
+              properties: { id: { type: 'string' } }
+            }
+          }
+        }
+      };
+      const targetInSchemas: OpenAPIV3.SchemaObject = {
+        type: 'object',
+        title: 'User',
+        properties: { name: { type: 'string' } }
+      };
+
+      const result = findSchemaByPointer({
+        spec,
+        pointer: 'User',
+        schemas: [targetInSchemas]
+      });
+
+      expect(result).toBe(targetInSchemas);
     });
   });
 });

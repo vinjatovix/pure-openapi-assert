@@ -143,15 +143,18 @@ function resolveBigIntMultiple(
       return undefined;
     }
 
-    const decimals = Math.max(0, getDecimalPlaces(multipleNum));
-    const multiplier = 10n ** BigInt(decimals);
-    let bigintMultiple: bigint;
     try {
-      bigintMultiple = BigInt(Math.round(multipleNum * Math.pow(10, decimals)));
+      const decimals = Math.max(0, getDecimalPlaces(multipleNum));
+      const multiplier = 10n ** BigInt(decimals);
+      const scaled = multipleNum * Math.pow(10, decimals);
+      if (Number.isNaN(scaled) || !Number.isFinite(scaled)) {
+        return undefined;
+      }
+      const bigintMultiple = BigInt(Math.round(scaled));
+      return { bigintMultiple, multiplier };
     } catch {
-      bigintMultiple = 0n;
+      return undefined;
     }
-    return { bigintMultiple, multiplier };
   }
 }
 

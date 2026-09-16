@@ -1,6 +1,9 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { SchemaBuilder } from './SchemaBuilder.js';
 
+type SchemaResolvable =
+  OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | SchemaBuilder;
+
 const create = (
   configure: (builder: SchemaBuilder) => SchemaBuilder = (b) => b
 ) => {
@@ -12,15 +15,16 @@ const create = (
 
 const createPolymorphic = (method: 'oneOf' | 'anyOf' | 'allOf') => {
   return (
-    schemas: Array<
-      OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | SchemaBuilder
-    >,
+    schemas: Array<SchemaResolvable>,
     overrides?: Partial<OpenAPIV3.SchemaObject>
-  ): OpenAPIV3.SchemaObject => {
-    const builder = new SchemaBuilder();
-    builder[method](...schemas);
-    return Object.assign(builder.build(), overrides);
-  };
+  ): OpenAPIV3.SchemaObject => create((b) => b[method](...schemas))(overrides);
+};
+
+const createUnary = (method: 'not') => {
+  return (
+    schema: SchemaResolvable,
+    overrides?: Partial<OpenAPIV3.SchemaObject>
+  ): OpenAPIV3.SchemaObject => create((b) => b[method](schema))(overrides);
 };
 
 export const schemaMother = {
@@ -28,6 +32,7 @@ export const schemaMother = {
   string: create((b) => b.type('string')),
   number: create((b) => b.type('number')),
   integer: create((b) => b.type('integer')),
+  boolean: create((b) => b.type('boolean')),
   object: create((b) => b.type('object')),
   array: create((b) => b.type('array')),
   int64: create((b) => b.format('int64')),
@@ -35,5 +40,6 @@ export const schemaMother = {
   double: create((b) => b.format('double')),
   oneOf: createPolymorphic('oneOf'),
   anyOf: createPolymorphic('anyOf'),
-  allOf: createPolymorphic('allOf')
+  allOf: createPolymorphic('allOf'),
+  not: createUnary('not')
 };

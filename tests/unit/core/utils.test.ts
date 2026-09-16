@@ -187,5 +187,11 @@ describe('core/utils', () => {
 
       expect(result).toBe(expected);
     });
+
+    it('should fall back to "undefined" for non-stringifiable inputs like undefined (T005)', () => {
+      const result = safeStringify(undefined);
+
+      expect(result).toBe('undefined');
+    });
   });
 });

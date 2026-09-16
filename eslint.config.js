@@ -13,14 +13,14 @@ export default tseslint.config(
     },
     rules: {
       'complexity': ['error', 10],
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        { argsIgnorePattern: '^_' }
-      ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': 'error'
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_' }
+      ]
     }
   }
 );

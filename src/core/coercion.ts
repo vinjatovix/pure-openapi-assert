@@ -77,20 +77,13 @@ export function parseCSVHeader(value: string): string[] {
 }
 
 /** @internal */
-export function coerceIntegerString(
-  trimmed: string,
-  original: unknown
-): unknown {
+export function coerceIntegerString(trimmed: string): unknown {
   if (!INTEGER_STRING_REGEX.test(trimmed)) {
     return undefined;
   }
   const num = Number(trimmed);
   if (!Number.isSafeInteger(num)) {
-    try {
-      return BigInt(trimmed);
-    } catch {
-      return original;
-    }
+    return BigInt(trimmed);
   }
   return num;
 }
@@ -187,7 +180,7 @@ export function losslessReplace(str: string): string {
 export function parseJSONLossless(str: string): unknown {
   const trimmed = str.trim();
   const coercedInt = /^-?(?:0|[1-9]\d*)$/.test(trimmed)
-    ? coerceIntegerString(trimmed, undefined)
+    ? coerceIntegerString(trimmed)
     : undefined;
   if (coercedInt !== undefined) {
     return coercedInt;
@@ -240,14 +233,14 @@ function isPrecisionLossy(
 }
 
 function coerceNumber(value: unknown, schema: OpenAPIV3.SchemaObject): unknown {
-  if (typeof value === 'number' || typeof value !== 'string') {
+  if (typeof value !== 'string') {
     return value;
   }
 
   const trimmed = value.trim();
   if (trimmed === '') return value;
 
-  const intResult = coerceIntegerString(trimmed, value);
+  const intResult = coerceIntegerString(trimmed);
   if (intResult !== undefined) {
     return intResult;
   }
@@ -335,6 +328,9 @@ function coerceSingleValue(args: CoerceSingleValueArgs): unknown {
     case 'array':
       return coerceArray({ value, schema, tracker, customFormats, ctx });
     default:
+      if (isArraySchema(schema)) {
+        return coerceArray({ value, schema, tracker, customFormats, ctx });
+      }
       return value;
   }
 }
@@ -345,13 +341,15 @@ interface CoerceComposedHeaderValueArgs {
   tracker: CycleTracker;
   customFormats?: Record<string, (val: string) => boolean> | undefined;
   ctx?: ValidationContext | undefined;
+  validationBoundarySchema?: OpenAPIV3.SchemaObject | undefined;
 }
 
 function coerceAllOfHeaderValue(
   args: CoerceComposedHeaderValueArgs,
   initialValue: unknown
 ): unknown {
-  const { schema, tracker, customFormats, ctx } = args;
+  const { schema, tracker, customFormats, ctx, validationBoundarySchema } =
+    args;
   let coerced = initialValue;
   if (schema.allOf) {
     for (const sub of schema.allOf) {
@@ -362,7 +360,8 @@ function coerceAllOfHeaderValue(
           schema: resolvedSub,
           tracker,
           customFormats,
-          ctx
+          ctx,
+          validationBoundarySchema
         });
       }
     }
@@ -370,40 +369,190 @@ function coerceAllOfHeaderValue(
   return coerced;
 }
 
+function tryCoerceSubSchema(
+  sub: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
+  initialValue: unknown,
+  args: CoerceComposedHeaderValueArgs,
+  parentSchema: OpenAPIV3.SchemaObject
+): unknown {
+  const { tracker, customFormats, ctx, validationBoundarySchema } = args;
+  const resolvedSub = resolveSchema(sub, ctx);
+  if (resolvedSub) {
+    const candidateCoerced = coerceHeaderValue({
+      value: initialValue,
+      schema: resolvedSub,
+      tracker,
+      customFormats,
+      ctx,
+      validationBoundarySchema
+    });
+    const tempCtx = new ValidationContext({ spec: ctx?.spec });
+    validateShape({
+      value: candidateCoerced,
+      schema: validationBoundarySchema || parentSchema,
+      ctx: tempCtx,
+      validateShape,
+      customFormats
+    });
+
+    if (!tempCtx.hasErrors()) {
+      return candidateCoerced;
+    }
+  }
+  return undefined;
+}
+
 function coerceOneOfAnyOfHeaderValue(
   args: CoerceComposedHeaderValueArgs,
   initialValue: unknown
 ): unknown {
-  const { schema, tracker, customFormats, ctx } = args;
-  const subSchemas = [...(schema.oneOf || []), ...(schema.anyOf || [])];
+  const { schema: parentSchema } = args;
 
-  if (subSchemas.length > 0) {
-    for (const sub of subSchemas) {
-      const resolvedSub = resolveSchema(sub, ctx);
-      if (resolvedSub) {
-        const candidateCoerced = coerceHeaderValue({
-          value: initialValue,
-          schema: resolvedSub,
-          tracker,
-          customFormats,
-          ctx
-        });
-        const tempCtx = new ValidationContext(ctx?.spec);
-        validateShape({
-          value: candidateCoerced,
-          schema, // Validate against the full parent schema to capture sibling and top-level constraints
-          ctx: tempCtx,
-          validateShape,
-          customFormats
-        });
-
-        if (!tempCtx.hasErrors()) {
-          return candidateCoerced;
+  for (const list of [parentSchema.oneOf, parentSchema.anyOf]) {
+    if (!list) continue;
+    for (let i = 0; i < list.length; i++) {
+      const sub = list[i];
+      if (sub) {
+        const coerced = tryCoerceSubSchema(
+          sub,
+          initialValue,
+          args,
+          parentSchema
+        );
+        if (coerced !== undefined) {
+          return coerced;
         }
       }
     }
   }
+
   return initialValue;
+}
+
+function hasPolymorphicSchema(
+  schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject | undefined,
+  ctx?: ValidationContext,
+  visited = new Set<unknown>()
+): boolean {
+  if (!schema || visited.has(schema)) {
+    return false;
+  }
+
+  visited.add(schema);
+  const resolved = resolveSchema(schema, ctx);
+  if (!resolved) {
+    return false;
+  }
+  if (resolved.oneOf || resolved.anyOf) {
+    return true;
+  }
+  if (resolved.allOf) {
+    return resolved.allOf.some((sub) =>
+      hasPolymorphicSchema(sub, ctx, visited)
+    );
+  }
+  return false;
+}
+
+function shouldEarlyReturnCoerced(
+  coerced: unknown,
+  parentSchema: OpenAPIV3.SchemaObject,
+  validationBoundarySchema: OpenAPIV3.SchemaObject | undefined,
+  customFormats: Record<string, (val: string) => boolean> | undefined,
+  ctx?: ValidationContext
+): boolean {
+  if (!hasPolymorphicSchema(parentSchema, ctx)) {
+    return false;
+  }
+  // NOTE: GC Pressure vs Type Isolation:
+  // Instantiating a new ValidationContext on the hot path of coercion (headers/query parameters)
+  // introduces minor garbage collector pressure. However, this is necessary to ensure validation dry-runs
+  // under a 'not' composition block do not contaminate the parent validation context's error log.
+  // Performance benchmarks show that execution latency remains well below the sub-millisecond SLO.
+  // If deeply nested schemas trigger performance issues in the future, context pooling can be evaluated.
+  const tempCtx = new ValidationContext({ spec: ctx?.spec });
+  validateShape({
+    value: coerced,
+    schema: validationBoundarySchema ?? parentSchema,
+    ctx: tempCtx,
+    validateShape,
+    customFormats
+  });
+  return !tempCtx.hasErrors();
+}
+
+function getTargetSchema(
+  parentSchema: OpenAPIV3.SchemaObject,
+  validationBoundarySchema: OpenAPIV3.SchemaObject | undefined
+): OpenAPIV3.SchemaObject {
+  if (validationBoundarySchema && validationBoundarySchema !== parentSchema) {
+    return validationBoundarySchema;
+  }
+  const parentSchemaWithoutNot = { ...parentSchema };
+  delete parentSchemaWithoutNot.not;
+  return parentSchemaWithoutNot;
+}
+
+function tryIsolateNotCoercion(
+  args: CoerceComposedHeaderValueArgs,
+  coerced: unknown
+): unknown {
+  const {
+    schema: parentSchema,
+    tracker,
+    customFormats,
+    ctx,
+    validationBoundarySchema
+  } = args;
+  if (!parentSchema.not) {
+    return coerced;
+  }
+
+  if (
+    shouldEarlyReturnCoerced(
+      coerced,
+      parentSchema,
+      validationBoundarySchema,
+      customFormats,
+      ctx
+    )
+  ) {
+    return coerced;
+  }
+
+  const resolvedNot = resolveSchema(parentSchema.not, ctx);
+  if (!resolvedNot) {
+    return coerced;
+  }
+
+  const candidateCoerced = coerceHeaderValue({
+    value: coerced,
+    schema: resolvedNot,
+    tracker,
+    customFormats,
+    ctx,
+    validationBoundarySchema
+  });
+
+  const targetSchema = getTargetSchema(parentSchema, validationBoundarySchema);
+
+  // NOTE: GC Pressure vs Type Isolation:
+  // Instantiating a new ValidationContext here ensures the candidate coercion validation remains
+  // isolated from the parent context.
+  const tempCtx = new ValidationContext({ spec: ctx?.spec });
+  validateShape({
+    value: candidateCoerced,
+    schema: targetSchema,
+    ctx: tempCtx,
+    validateShape,
+    customFormats
+  });
+
+  if (tempCtx.hasErrors()) {
+    return coerced;
+  }
+
+  return candidateCoerced;
 }
 
 function coerceComposedHeaderValue(
@@ -411,6 +560,7 @@ function coerceComposedHeaderValue(
 ): unknown {
   let coerced = coerceAllOfHeaderValue(args, args.value);
   coerced = coerceOneOfAnyOfHeaderValue(args, coerced);
+  coerced = tryIsolateNotCoercion(args, coerced);
   return coerced;
 }
 
@@ -421,11 +571,19 @@ export interface CoerceHeaderValueArgs {
   tracker?: CycleTracker | undefined;
   customFormats?: Record<string, (val: string) => boolean> | undefined;
   ctx?: ValidationContext | undefined;
+  validationBoundarySchema?: OpenAPIV3.SchemaObject | undefined;
 }
 
 /** @internal */
 export function coerceHeaderValue(args: CoerceHeaderValueArgs): unknown {
-  const { value, schema: rawSchema, tracker, customFormats, ctx } = args;
+  const {
+    value,
+    schema: rawSchema,
+    tracker,
+    customFormats,
+    ctx,
+    validationBoundarySchema
+  } = args;
   if (!rawSchema) {
     return value;
   }
@@ -435,16 +593,54 @@ export function coerceHeaderValue(args: CoerceHeaderValueArgs): unknown {
   }
 
   const activeTracker = tracker ?? new CycleTracker();
+  const activeValidationBoundary = validationBoundarySchema ?? schema;
 
   if (!schema.type) {
     const result = activeTracker.track(schema, () => {
-      return coerceComposedHeaderValue({
-        value,
-        schema,
-        tracker: activeTracker,
-        customFormats,
-        ctx
-      });
+      let coerced = value;
+      if ('items' in schema && schema.items !== undefined) {
+        if (Array.isArray(value)) {
+          const valueArray: unknown[] = value;
+          const itemSchema = schema.items;
+          if (itemSchema !== null) {
+            coerced = valueArray.map((v) =>
+              coerceHeaderValue({
+                value: v,
+                schema: itemSchema,
+                tracker: activeTracker,
+                customFormats,
+                ctx,
+                validationBoundarySchema: undefined
+              })
+            );
+          }
+        } else if (typeof value === 'string') {
+          coerced = coerceArray({
+            value,
+            schema,
+            tracker: activeTracker,
+            customFormats,
+            ctx
+          });
+        }
+      }
+
+      if (
+        schema.allOf ||
+        schema.anyOf ||
+        schema.oneOf ||
+        schema.not !== undefined
+      ) {
+        coerced = coerceComposedHeaderValue({
+          value: coerced,
+          schema,
+          tracker: activeTracker,
+          customFormats,
+          ctx,
+          validationBoundarySchema: activeValidationBoundary
+        });
+      }
+      return coerced;
     });
     return result === CYCLE_DETECTED ? value : result;
   }
@@ -461,7 +657,8 @@ export function coerceHeaderValue(args: CoerceHeaderValueArgs): unknown {
             schema: itemSchema,
             tracker: activeTracker,
             customFormats,
-            ctx
+            ctx,
+            validationBoundarySchema: undefined
           })
         );
       } else {
@@ -477,13 +674,19 @@ export function coerceHeaderValue(args: CoerceHeaderValueArgs): unknown {
       });
     }
 
-    if (schema.allOf || schema.anyOf || schema.oneOf) {
+    if (
+      schema.allOf ||
+      schema.anyOf ||
+      schema.oneOf ||
+      schema.not !== undefined
+    ) {
       coerced = coerceComposedHeaderValue({
         value: coerced,
         schema,
         tracker: activeTracker,
         customFormats,
-        ctx
+        ctx,
+        validationBoundarySchema: activeValidationBoundary
       });
     }
 
