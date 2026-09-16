@@ -175,7 +175,7 @@ export function resolveSchema(
   const refMsg = `Unresolved $ref: '${schema.$ref}'. Ensure your OpenAPI spec is fully dereferenced.`;
 
   if (ctx) {
-    ctx.addError(refMsg);
+    ctx.addError(refMsg, { code: 'UNRESOLVED_REF' });
   } else {
     throw new Error(refMsg);
   }

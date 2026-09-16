@@ -78,6 +78,13 @@ function validateAllOf(args: ValidationArgs<unknown>): void {
     const subSchema = resolveSchema(sub, ctx);
     if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
+    const resolutionErrors = issues.filter(
+      (i) => i.code === 'UNRESOLVED_REF' || i.code === 'CYCLIC_NOT_SCHEMA'
+    );
+    if (resolutionErrors.length > 0) {
+      ctx.addIssues(resolutionErrors);
+      return;
+    }
     ctx.addIssues(issues);
   }
 }
@@ -102,6 +109,13 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
     const subSchema = resolveSchema(sub, ctx);
     if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
+    const resolutionErrors = issues.filter(
+      (i) => i.code === 'UNRESOLVED_REF' || i.code === 'CYCLIC_NOT_SCHEMA'
+    );
+    if (resolutionErrors.length > 0) {
+      ctx.addIssues(resolutionErrors);
+      return;
+    }
     const errors = issues.filter((i) => i.severity === 'error');
     if (errors.length === 0) {
       ctx.addIssues(issues.filter((i) => i.severity === 'warning'));
@@ -111,7 +125,7 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
   }
 
   const formatted = formatBranchErrors(branchErrors);
-  ctx.addError(`Failed anyOf:\n${formatted}`, branchErrors);
+  ctx.addError(`Failed anyOf:\n${formatted}`, { branches: branchErrors });
 }
 
 function validateOneOf(args: ValidationArgs<unknown>): void {
@@ -136,6 +150,13 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
     const subSchema = resolveSchema(sub, ctx);
     if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
+    const resolutionErrors = issues.filter(
+      (i) => i.code === 'UNRESOLVED_REF' || i.code === 'CYCLIC_NOT_SCHEMA'
+    );
+    if (resolutionErrors.length > 0) {
+      ctx.addIssues(resolutionErrors);
+      return;
+    }
     const errors = issues.filter((i) => i.severity === 'error');
     if (errors.length === 0) {
       passedCount++;
@@ -156,7 +177,7 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
   const formatted = formatBranchErrors(branchErrors);
   ctx.addError(
     `Value matches ${passedCount} schemas from 'oneOf' (expected exactly 1):\n${formatted}`,
-    branchErrors
+    { branches: branchErrors }
   );
 }
 

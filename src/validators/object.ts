@@ -140,11 +140,7 @@ export function validateObject(args: ValidationArgs): void {
     };
 
     validateObjectBounds(objectArgs);
-
-    if (schema.required) {
-      validateRequiredFields(objectArgs);
-    }
-
+    validateRequiredFields(objectArgs);
     validateAdditionalProperties(objectArgs);
     validateDeclaredProperties(objectArgs);
   } finally {

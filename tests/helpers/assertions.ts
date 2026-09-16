@@ -16,9 +16,10 @@ export function assertHasValidationError(
 
   const firstErrorObj = errors[0];
 
-  if (firstErrorObj === undefined) {
+  if (!firstErrorObj) {
     const errorMsg = `Expected ValidationContext to have validation error matching/containing "${expectedMessage}", but no errors were recorded.`;
     expect.fail(errorMsg);
+    return;
   }
 
   const firstErrorStr = `[${firstErrorObj.path}] ${firstErrorObj.message}`;

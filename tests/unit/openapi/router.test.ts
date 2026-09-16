@@ -445,5 +445,50 @@ describe('openapi/router', () => {
         "Content-Type 'application/json' is not declared for GET /users 204. No content declared in OpenAPI spec."
       );
     });
+
+    it('should return false during content type negotiation when request contains a wildcard but declared does not match (T006)', () => {
+      const content = {
+        'application/json': { schema: { type: 'object' as const } }
+      };
+      const spec = new DocumentBuilder()
+        .withPaths({
+          '/test': {
+            get: {
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content
+                }
+              }
+            }
+          }
+        })
+        .build();
+
+      expect(() => getTestSchema({ spec, contentType: 'image/*' })).toThrow();
+    });
+
+    it('should resolve schema as null when media type lacks a schema property (T007)', () => {
+      const content = { 'application/json': {} };
+      const spec = new DocumentBuilder()
+        .withPaths({
+          '/test': {
+            get: {
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content
+                }
+              }
+            }
+          }
+        })
+        .build();
+
+      const result = getTestSchema({ spec, contentType: 'application/json' });
+
+      expect(result.schema).toBeNull();
+      expect(result.matchedContentType).toBe('application/json');
+    });
   });
 });

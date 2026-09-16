@@ -19,6 +19,7 @@ Most traditional testing setups rely on AJV or other JSON Schema engines to vali
 - **Guaranteed Performance SLOs:** Blazing-fast hot runs (**<3ms** with in-memory caching) and ultra-responsive initial cold runs (**<100ms**).
 - **Hyper-Strict TypeScript Typings:** Native type safety that helps prevent mismatches in options, formats, and configurations.
 - **Polymorphism Support:** Built-in high-performance evaluation of polymorphic compositions (`oneOf`, `anyOf`, `allOf`) with explicit support for `discriminator` routing to avoid evaluating irrelevant schema branches.
+- **Negation Support (`not` Keyword):** Full compliance with the OpenAPI 3.0 `not` directive. Payloads matching schemas specified under a `not` block are strictly rejected, while non-matching payloads are accepted cleanly with zero error leakages or context pollution.
 - **Comprehensive Developer Experience (DX):** Validation failures are compiled into structured, highly readable nested property paths (e.g. `[body.profile.address.zipCode]`) for immediate root-cause diagnosis.
 
 ---

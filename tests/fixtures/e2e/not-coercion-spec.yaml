@@ -1,0 +1,22 @@
+openapi: 3.0.0
+info:
+  title: Not Coercion E2E Test Spec
+  version: 1.0.0
+paths:
+  /test/coercion:
+    get:
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Not-Integer:
+              schema:
+                not:
+                  type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean

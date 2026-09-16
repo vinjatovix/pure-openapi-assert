@@ -16,6 +16,6 @@ export class ValidationContextBuilder {
   }
 
   build(): ValidationContext {
-    return new ValidationContext(this.spec, this.visited);
+    return new ValidationContext({ spec: this.spec, visited: this.visited });
   }
 }

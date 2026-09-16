@@ -624,8 +624,9 @@ describe('validators/number', () => {
       assertValid(ctx);
 
       ctx = contextMother.empty();
+      const valueExceedingInt64Max = 9223372036854775808n;
       validateShape({
-        value: 9223372036854775808n, // Over INT64_MAX
+        value: valueExceedingInt64Max,
         schema: new SchemaBuilder().type('integer').format('int64').build(),
         ctx,
         validateShape
@@ -746,6 +747,22 @@ describe('validators/number', () => {
         assertValid(ctx);
       });
 
+      it('should gracefully handle Number.MIN_VALUE multipleOf for bigint/int64 values without throwing (RangeError crash prevention)', () => {
+        expect(() => {
+          validateMultipleOfConstraint({
+            value: 10n,
+            schema: new SchemaBuilder()
+              .type('integer')
+              .format('int64')
+              .multipleOf(Number.MIN_VALUE)
+              .build(),
+            ctx,
+            validateShape
+          });
+        }).not.toThrow();
+        assertValid(ctx);
+      });
+
       it('should handle calculations that overflow during rounding without throwing', () => {
         expect(() => {
           validateMultipleOfConstraint({
@@ -834,8 +851,9 @@ describe('validators/number', () => {
       assertValid(ctx);
 
       ctx = contextMother.empty();
+      const valueExceedingInt32Max = 2147483648n;
       validateShape({
-        value: 2147483648n, // INT32_MAX + 1
+        value: valueExceedingInt32Max,
         schema: new SchemaBuilder().type('integer').format('int32').build(),
         ctx,
         validateShape
@@ -846,8 +864,9 @@ describe('validators/number', () => {
       );
 
       ctx = contextMother.empty();
+      const valueBelowInt32Min = -2147483649n;
       validateShape({
-        value: -2147483649n, // INT32_MIN - 1
+        value: valueBelowInt32Min,
         schema: new SchemaBuilder().type('integer').format('int32').build(),
         ctx,
         validateShape
@@ -856,6 +875,42 @@ describe('validators/number', () => {
         ctx,
         'Expected 32-bit integer, received -2147483649'
       );
+    });
+
+    it('should gracefully ignore validation for NaN, negative, and infinite multipleOf values (T011)', () => {
+      const schemaNaN = new SchemaBuilder()
+        .type('number')
+        .multipleOf(NaN)
+        .build();
+      const schemaNeg = new SchemaBuilder()
+        .type('number')
+        .multipleOf(-5)
+        .build();
+      const schemaInf = new SchemaBuilder()
+        .type('number')
+        .multipleOf(Infinity)
+        .build();
+
+      validateMultipleOfConstraint({
+        value: 10,
+        schema: schemaNaN,
+        ctx,
+        validateShape
+      });
+      validateMultipleOfConstraint({
+        value: 10,
+        schema: schemaNeg,
+        ctx,
+        validateShape
+      });
+      validateMultipleOfConstraint({
+        value: 10,
+        schema: schemaInf,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
     });
   });
 });

@@ -19,8 +19,10 @@ function matchByMappingOrPointer(args: {
   const { spec, schemas, discriminator, discriminatorValue } = args;
   const mapping = discriminator.mapping;
 
-  if (mapping && Object.hasOwn(mapping, discriminatorValue)) {
-    const mappedRef = mapping[discriminatorValue];
+  if (mapping) {
+    const mappedRef = Object.hasOwn(mapping, discriminatorValue)
+      ? mapping[discriminatorValue]
+      : undefined;
     if (mappedRef) {
       const match = findSchemaByPointer({ spec, pointer: mappedRef, schemas });
       if (match) return match;

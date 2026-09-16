@@ -139,6 +139,19 @@ describe('validators/base', () => {
       assertValid(ctx);
     });
 
+    it('validateConst should pass for deep strict equal objects that are not strictly identical (T008)', () => {
+      const schema = new SchemaBuilder().type('object').const({ a: 1 }).build();
+
+      validateConst({
+        value: { a: 1 },
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
     it('validateConst should support bigint and format error message without throwing', () => {
       const schema = new SchemaBuilder().type('integer').const(42n).build();
 

@@ -31,7 +31,12 @@ export function isSchemaObject(
 export function isArraySchema(
   schema: OpenAPIV3.SchemaObject
 ): schema is OpenAPIV3.ArraySchemaObject {
-  return schema.type === 'array';
+  return (
+    schema.type === 'array' ||
+    (schema.type === undefined &&
+      'items' in schema &&
+      schema.items !== undefined)
+  );
 }
 
 export function normalizeMediaType(mime: string): string {

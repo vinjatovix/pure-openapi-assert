@@ -214,19 +214,15 @@ describe('core/ValidationContext', () => {
   });
 
   it('should support merging arrays of issues cleanly via addIssues', () => {
-    const ctx = new ValidationContext(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      [
+    const ctx = new ValidationContext({
+      issues: [
         {
           path: 'body.field1',
           message: 'warn 1',
           severity: 'warning'
         }
       ]
-    );
+    });
 
     ctx.addIssues([
       { path: 'body.field1', message: 'warn 1', severity: 'warning' },
@@ -258,5 +254,102 @@ describe('core/ValidationContext', () => {
     expect(warning.path).toBe('body.oldField');
     expect(warning.message).toBe('is deprecated');
     expect(warning.severity).toBe('warning');
+  });
+
+  it('should handle popNegation on a plain object with no active negation', () => {
+    const ctx = new ValidationContext();
+    const obj = { foo: 'bar' };
+    const schema = { type: 'object' as const };
+
+    ctx.popNegation(obj, schema);
+
+    expect(ctx.hasActiveNegation(obj, schema)).toBe(false);
+  });
+});
+
+describe('core/ValidationContext Child Instantiation optimizations', () => {
+  it('should clone the visited set when creating a child context by default', () => {
+    const parent = new ValidationContext();
+    const mockObject = {};
+    parent.visited.add(mockObject);
+
+    const child = parent.createChildContext();
+
+    expect(child.visited.has(mockObject)).toBe(true);
+    expect(child.visited).not.toBe(parent.visited);
+  });
+
+  it('should instantiate an empty visited set when resetVisited is true', () => {
+    const parent = new ValidationContext();
+    const mockObject = {};
+    parent.visited.add(mockObject);
+
+    const child = parent.createChildContext({ resetVisited: true });
+
+    expect(child.visited.size).toBe(0);
+    expect(child.visited.has(mockObject)).toBe(false);
+  });
+
+  it('should inherit activePrimitiveNegations from the parent context', () => {
+    const parent = new ValidationContext();
+    const mockSchema = { type: 'string' } as const;
+    parent.pushNegation('test-string', mockSchema);
+
+    const child = parent.createChildContext();
+
+    expect(child.hasActiveNegation('test-string', mockSchema)).toBe(true);
+  });
+
+  it('should not reflect activePrimitiveNegations pushed to the child context in the parent', () => {
+    const parent = new ValidationContext();
+    const child = parent.createChildContext();
+    const mockSchema = { type: 'number' } as const;
+
+    child.pushNegation(42, mockSchema);
+
+    expect(parent.hasActiveNegation(42, mockSchema)).toBe(false);
+  });
+
+  it('should keep activePrimitiveNegations active in the child context when pushed to the child', () => {
+    const parent = new ValidationContext();
+    const child = parent.createChildContext();
+    const mockSchema = { type: 'number' } as const;
+
+    child.pushNegation(42, mockSchema);
+
+    expect(child.hasActiveNegation(42, mockSchema)).toBe(true);
+  });
+
+  it('should not affect parent activePrimitiveNegations when popped in the child context', () => {
+    const parent = new ValidationContext();
+    const mockSchema = { type: 'string' } as const;
+    parent.pushNegation('test-string', mockSchema);
+    const child = parent.createChildContext();
+
+    child.popNegation('test-string', mockSchema);
+
+    expect(parent.hasActiveNegation('test-string', mockSchema)).toBe(true);
+  });
+
+  it('should deactivate child activePrimitiveNegations when popped in the child context', () => {
+    const parent = new ValidationContext();
+    const mockSchema = { type: 'string' } as const;
+    parent.pushNegation('test-string', mockSchema);
+    const child = parent.createChildContext();
+
+    child.popNegation('test-string', mockSchema);
+
+    expect(child.hasActiveNegation('test-string', mockSchema)).toBe(false);
+  });
+
+  it('should not affect sibling activePrimitiveNegations when pushed in other sibling', () => {
+    const parent = new ValidationContext();
+    const child1 = parent.createChildContext();
+    const child2 = parent.createChildContext();
+    const mockSchema = { type: 'string' } as const;
+
+    child1.pushNegation('test-string', mockSchema);
+
+    expect(child2.hasActiveNegation('test-string', mockSchema)).toBe(false);
   });
 });

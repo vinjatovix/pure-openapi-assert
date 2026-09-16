@@ -12,6 +12,7 @@ import {
 } from '../../../src/core/coercion.js';
 import { CycleTracker } from '../../../src/core/CycleTracker.js';
 import { ValidationContext } from '../../../src/core/ValidationContext.js';
+import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('coercion utility unit tests', () => {
   describe('parseCSVHeader', () => {
@@ -36,7 +37,7 @@ describe('coercion utility unit tests', () => {
 
   describe('coerceIntegerString', () => {
     it('returns undefined for an invalid integer string', () => {
-      const result = coerceIntegerString('invalid', 'original');
+      const result = coerceIntegerString('invalid');
 
       expect(result).toBeUndefined();
     });
@@ -241,7 +242,7 @@ describe('coercion utility unit tests', () => {
         const schema: OpenAPIV3.SchemaObject = {
           oneOf: [{ $ref: '#/components/schemas/TargetInt' }]
         };
-        const ctx = new ValidationContext(mockSpec);
+        const ctx = new ValidationContext({ spec: mockSpec });
 
         const result = coerceHeaderValue({ value: '42', schema, ctx });
 
@@ -258,7 +259,7 @@ describe('coercion utility unit tests', () => {
         const schema: OpenAPIV3.SchemaObject = {
           allOf: [{ $ref: '#/components/schemas/NonExistent' }]
         };
-        const ctx = new ValidationContext(mockSpec);
+        const ctx = new ValidationContext({ spec: mockSpec });
 
         coerceHeaderValue({ value: 'val', schema, ctx });
 
@@ -285,6 +286,69 @@ describe('coercion utility unit tests', () => {
         expect(result).toEqual([1, 2, 3]);
       });
     });
+
+    describe('Negated Schema Coercion Isolation', () => {
+      it('should isolate coercion within the not schema and prevent leakage to outer type-constrained scopes', () => {
+        const schema: OpenAPIV3.SchemaObject = {
+          type: 'string',
+          allOf: [{ minLength: 1 }],
+          not: { type: 'integer' }
+        };
+
+        const result = coerceHeaderValue({ value: '123', schema });
+
+        expect(result).toBe('123');
+      });
+
+      it('should still allow coercion for untyped outer schemas', () => {
+        const schema: OpenAPIV3.SchemaObject = {
+          not: { type: 'integer' }
+        };
+
+        const result = coerceHeaderValue({ value: '123', schema });
+
+        expect(result).toBe(123);
+      });
+
+      it('should preserve and not overwrite a selected composition candidate when applying negation isolation', () => {
+        const schema: OpenAPIV3.SchemaObject = {
+          oneOf: [{ type: 'integer' }, { type: 'string' }],
+          not: { type: 'integer' }
+        };
+
+        const result = coerceHeaderValue({ value: '123', schema });
+
+        expect(result).toBe('123');
+      });
+
+      it('should trigger composed coercion and negation isolation when a base type and a not clause are combined', () => {
+        const schemaWithBaseAndNot = schemaMother.array({
+          items: {},
+          not: schemaMother.array({ items: schemaMother.integer() })
+        });
+
+        const coercedIntegerArray = coerceHeaderValue({
+          value: '1,2,3',
+          schema: schemaWithBaseAndNot
+        });
+
+        expect(coercedIntegerArray).toEqual([1, 2, 3]);
+      });
+
+      it('should preserve and not overwrite a selected composition candidate when applying negation isolation on nested allOf compositions', () => {
+        const nestedPolymorphicSchemaWithNot = schemaMother.allOf(
+          [schemaMother.oneOf([schemaMother.integer(), schemaMother.string()])],
+          { not: schemaMother.integer() }
+        );
+
+        const coercedResult = coerceHeaderValue({
+          value: '123',
+          schema: nestedPolymorphicSchemaWithNot
+        });
+
+        expect(coercedResult).toBe('123');
+      });
+    });
   });
 
   describe('normalizeHeaders', () => {
@@ -292,6 +356,115 @@ describe('coercion utility unit tests', () => {
       const result = normalizeHeaders(undefined);
 
       expect(result).toEqual({});
+    });
+  });
+
+  describe('Additional coverage edge cases', () => {
+    it('should skip nested unresolved ref inside not schema during negation isolation (T012)', () => {
+      const schema: OpenAPIV3.SchemaObject = {
+        type: 'string',
+        not: { $ref: '#/components/schemas/Invalid' }
+      };
+      const ctx = new ValidationContext();
+
+      const result = coerceHeaderValue({ value: '123', schema, ctx });
+
+      expect(result).toBe('123');
+    });
+
+    it('should handle falsy schemas in polymorphic recursion checks (T013)', () => {
+      const schema: OpenAPIV3.SchemaObject = {
+        allOf: [undefined] as unknown as OpenAPIV3.SchemaObject[]
+      };
+
+      const result = coerceHeaderValue({ value: '123', schema });
+
+      expect(result).toBe('123');
+    });
+
+    it('should return the original value in coerceHeaderValue if the schema resolves to falsy (T014)', () => {
+      const schema = { $ref: '#/invalid' };
+      const ctx = new ValidationContext();
+
+      const result = coerceHeaderValue({ value: '123', schema, ctx });
+
+      expect(result).toBe('123');
+    });
+
+    it('should correctly coerce polymorphic items inside arrays instead of validating items against the array boundary schema (T015)', () => {
+      const schema: OpenAPIV3.SchemaObject = {
+        type: 'array',
+        items: {
+          oneOf: [{ type: 'integer' }, { type: 'string' }]
+        }
+      };
+
+      const result = coerceHeaderValue({
+        value: ['123', 'abc'],
+        schema
+      });
+
+      expect(result).toEqual([123, 'abc']);
+    });
+  });
+});
+
+describe('core/coercion optimizations', () => {
+  it.each([
+    {
+      description:
+        'should coerce correctly using oneOf header without relying on arrays allocations',
+      schema: { oneOf: [{ type: 'number' as const }] },
+      value: '42',
+      expected: 42
+    },
+    {
+      description:
+        'should coerce correctly using anyOf header without relying on arrays allocations',
+      schema: { anyOf: [{ type: 'boolean' as const }] },
+      value: 'true',
+      expected: true
+    }
+  ])('$description', ({ schema, value, expected }) => {
+    const ctx = new ValidationContext();
+
+    const result = coerceHeaderValue({ value, schema, ctx });
+
+    expect(result).toBe(expected);
+  });
+
+  describe('Coercion Isolation Leakage in allOf combined with not', () => {
+    it('should not mutate and return the correct coerced value when using allOf with not', () => {
+      const schema = schemaMother.allOf([
+        schemaMother.oneOf([schemaMother.integer(), schemaMother.string()]),
+        schemaMother.not(schemaMother.boolean())
+      ]);
+      const ctx = new ValidationContext();
+
+      const result = coerceHeaderValue({
+        value: 'true',
+        schema,
+        ctx
+      });
+
+      expect(result).toBe('true');
+    });
+  });
+
+  describe('Inferred Array Coercion', () => {
+    it('should coerce array items when type: array is omitted but items is present', () => {
+      const schema = schemaMother.empty({
+        items: schemaMother.integer()
+      });
+      const ctx = new ValidationContext();
+
+      const result = coerceHeaderValue({
+        value: ['1', '2'],
+        schema,
+        ctx
+      });
+
+      expect(result).toEqual([1, 2]);
     });
   });
 });

@@ -244,4 +244,21 @@ describe('validators/array', () => {
       assertValid(ctx);
     });
   });
+  describe('Inferred Array Validation', () => {
+    it('should validate array items when type is omitted but items is present', () => {
+      const schema = schemaMother.empty({
+        items: schemaMother.integer()
+      });
+      const value = ['not-a-number'];
+
+      validateShape({
+        value,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Expected integer, received string');
+    });
+  });
 });
