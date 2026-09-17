@@ -1,3 +1,4 @@
+import { schemaMother } from '../../helpers/schemaMother.js';
 import type { OpenAPIV3 } from 'openapi-types';
 import { describe, expect, it } from 'vitest';
 import { normalizeMediaType } from '../../../src/core/utils.js';
@@ -49,7 +50,7 @@ describe('openapi/router', () => {
     ): OpenAPIV3.Document {
       const content: Record<string, OpenAPIV3.MediaTypeObject> = {};
       for (const type of declaredTypes) {
-        content[type] = { schema: { type: 'object' } };
+        content[type] = { schema: schemaMother.object() };
       }
 
       return new DocumentBuilder()
@@ -275,7 +276,7 @@ describe('openapi/router', () => {
                 '200': {
                   description: 'OK',
                   content: {
-                    'application/json': { schema: { type: 'object' } }
+                    'application/json': { schema: schemaMother.object() }
                   }
                 }
               }
@@ -298,7 +299,7 @@ describe('openapi/router', () => {
                 '200': {
                   description: 'OK',
                   content: {
-                    'application/json': { schema: { type: 'object' } }
+                    'application/json': { schema: schemaMother.object() }
                   }
                 }
               }
@@ -321,7 +322,7 @@ describe('openapi/router', () => {
                 '200': {
                   description: 'OK',
                   content: {
-                    'application/json': { schema: { type: 'object' } }
+                    'application/json': { schema: schemaMother.object() }
                   }
                 }
               }
@@ -362,7 +363,7 @@ describe('openapi/router', () => {
                 '200': {
                   description: 'OK',
                   content: {
-                    'application/json': { schema: { type: 'object' } }
+                    'application/json': { schema: schemaMother.object() }
                   }
                 }
               }
@@ -391,11 +392,11 @@ describe('openapi/router', () => {
                   description: 'OK',
                   headers: {
                     'X-RateLimit-Limit': {
-                      schema: { type: 'integer' }
+                      schema: schemaMother.integer()
                     }
                   },
                   content: {
-                    'application/json': { schema: { type: 'object' } }
+                    'application/json': { schema: schemaMother.object() }
                   }
                 }
               }
@@ -414,7 +415,7 @@ describe('openapi/router', () => {
 
       expect(result.declaredHeaders).toBeDefined();
       expect(result.declaredHeaders?.['X-RateLimit-Limit']).toEqual({
-        schema: { type: 'integer' }
+        schema: schemaMother.integer()
       });
     });
 
@@ -448,7 +449,7 @@ describe('openapi/router', () => {
 
     it('should return false during content type negotiation when request contains a wildcard but declared does not match (T006)', () => {
       const content = {
-        'application/json': { schema: { type: 'object' as const } }
+        'application/json': { schema: schemaMother.object() }
       };
       const spec = new DocumentBuilder()
         .withPaths({

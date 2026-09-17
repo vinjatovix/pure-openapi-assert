@@ -21,6 +21,18 @@ export class DocumentBuilder {
     return this;
   }
 
+  withPath(path: string, method: string, operation: OpenAPIV3.OperationObject): this {
+    if (!this.doc.paths) {
+      this.doc.paths = {};
+    }
+    if (!this.doc.paths[path]) {
+      this.doc.paths[path] = {};
+    }
+    const pathItem = this.doc.paths[path] as Record<string, unknown>;
+    pathItem[method] = operation;
+    return this;
+  }
+
   withPaths(paths: OpenAPIV3.PathsObject): this {
     this.doc.paths = { ...this.doc.paths, ...paths };
     return this;

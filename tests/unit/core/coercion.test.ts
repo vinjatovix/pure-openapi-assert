@@ -1,3 +1,5 @@
+import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
+import { contextMother } from '../../helpers/contextMother.js';
 import { describe, it, expect } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 import {
@@ -94,7 +96,7 @@ describe('coercion utility unit tests', () => {
 
   describe('coerceArray', () => {
     it('returns original value if schema is not an array type', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'string' };
+      const schema = schemaMother.string();
       const tracker = new CycleTracker();
 
       const result = coerceArray({ value: 'val', schema, tracker });
@@ -103,10 +105,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('handles arrays of values passed directly to coerceArray', () => {
-      const schema: OpenAPIV3.SchemaObject = {
-        type: 'array',
-        items: { type: 'integer' }
-      };
+      const schema = schemaMother.array({ items: schemaMother.integer() });
       const tracker = new CycleTracker();
 
       const result = coerceArray({ value: [123, '456'], schema, tracker });
@@ -115,10 +114,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('returns the value unchanged if it is not an array or a string', () => {
-      const schema: OpenAPIV3.SchemaObject = {
-        type: 'array',
-        items: { type: 'integer' }
-      };
+      const schema = schemaMother.array({ items: schemaMother.integer() });
       const tracker = new CycleTracker();
 
       const result = coerceArray({ value: true, schema, tracker });
@@ -135,11 +131,8 @@ describe('coercion utility unit tests', () => {
     });
 
     it('returns original value if cycle is detected', () => {
-      const circularSchema: OpenAPIV3.SchemaObject = {
-        type: 'object',
-        properties: {}
-      };
-      circularSchema.properties!.self = circularSchema;
+      const circularSchema = schemaMother.object();
+      circularSchema.properties = { self: circularSchema };
       const tracker = new CycleTracker();
 
       let result: unknown;
@@ -156,7 +149,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('does not coerce non-integer floats with safe integer rounding (e.g. 1.0000000000000001)', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'integer' };
+      const schema = schemaMother.integer();
 
       const result = coerceHeaderValue({ value: '1.0000000000000001', schema });
 
@@ -164,7 +157,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('successfully coerces exact integers (e.g. 1.0)', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'integer' };
+      const schema = schemaMother.integer();
 
       const result = coerceHeaderValue({ value: '1.0', schema });
 
@@ -172,7 +165,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('does not coerce high-precision floats into number type to prevent silent precision loss', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'number' };
+      const schema = schemaMother.number();
 
       const result = coerceHeaderValue({ value: '1.0000000000000001', schema });
 
@@ -180,7 +173,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('successfully coerces integers formatted in scientific notation with negative exponents', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'integer' };
+      const schema = schemaMother.integer();
 
       const result = coerceHeaderValue({ value: '100.0e-1', schema });
 
@@ -188,7 +181,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('successfully coerces integers with fractional significands but positive exponents', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'integer' };
+      const schema = schemaMother.integer();
 
       const result = coerceHeaderValue({ value: '100.5e1', schema });
 
@@ -196,7 +189,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('does not coerce non-integer scientific notation floats under integer schemas', () => {
-      const schema: OpenAPIV3.SchemaObject = { type: 'integer' };
+      const schema = schemaMother.integer();
 
       const result = coerceHeaderValue({ value: '10.5e-1', schema });
 
@@ -204,10 +197,10 @@ describe('coercion utility unit tests', () => {
     });
 
     it('respects sibling constraints in oneOf/anyOf dry-runs', () => {
-      const schema: OpenAPIV3.SchemaObject = {
+      const schema = schemaMother.empty({
         allOf: [{ minimum: 10 }],
-        oneOf: [{ type: 'integer' }, { type: 'string', enum: ['3'] }]
-      };
+        oneOf: [schemaMother.integer(), schemaMother.string({ enum: ['3'] })]
+      });
 
       const result = coerceHeaderValue({ value: '3', schema });
 
@@ -229,19 +222,8 @@ describe('coercion utility unit tests', () => {
 
     describe('Strict reference resolution in compositions', () => {
       it('resolves valid pointers inside compositions', () => {
-        const mockSpec: OpenAPIV3.Document = {
-          openapi: '3.0.0',
-          info: { title: 'Test', version: '1.0.0' },
-          paths: {},
-          components: {
-            schemas: {
-              TargetInt: { type: 'integer' }
-            }
-          }
-        };
-        const schema: OpenAPIV3.SchemaObject = {
-          oneOf: [{ $ref: '#/components/schemas/TargetInt' }]
-        };
+        const mockSpec = new DocumentBuilder().withSchema('TargetInt', schemaMother.integer()).build();
+        const schema = schemaMother.oneOf([{ $ref: '#/components/schemas/TargetInt' }]);
         const ctx = new ValidationContext({ spec: mockSpec });
 
         const result = coerceHeaderValue({ value: '42', schema, ctx });
@@ -251,14 +233,8 @@ describe('coercion utility unit tests', () => {
       });
 
       it('throws or records error for unresolved refs inside compositions', () => {
-        const mockSpec: OpenAPIV3.Document = {
-          openapi: '3.0.0',
-          info: { title: 'Test', version: '1.0.0' },
-          paths: {}
-        };
-        const schema: OpenAPIV3.SchemaObject = {
-          allOf: [{ $ref: '#/components/schemas/NonExistent' }]
-        };
+        const mockSpec = new DocumentBuilder().build();
+        const schema = schemaMother.allOf([{ $ref: '#/components/schemas/NonExistent' }]);
         const ctx = new ValidationContext({ spec: mockSpec });
 
         coerceHeaderValue({ value: 'val', schema, ctx });
@@ -270,16 +246,14 @@ describe('coercion utility unit tests', () => {
 
     describe('Mixed Schema Coercion', () => {
       it('coerces both root type and composition sequentially', () => {
-        const schema: OpenAPIV3.SchemaObject = {
-          type: 'array',
-          items: {},
+        const schema = schemaMother.array({
+          items: schemaMother.empty(),
           oneOf: [
-            {
-              type: 'array',
-              items: { type: 'integer' }
-            }
+            schemaMother.array({
+              items: schemaMother.integer()
+            })
           ]
-        };
+        });
 
         const result = coerceHeaderValue({ value: '1,2,3', schema });
 
@@ -289,11 +263,10 @@ describe('coercion utility unit tests', () => {
 
     describe('Negated Schema Coercion Isolation', () => {
       it('should isolate coercion within the not schema and prevent leakage to outer type-constrained scopes', () => {
-        const schema: OpenAPIV3.SchemaObject = {
-          type: 'string',
+        const schema = schemaMother.string({
           allOf: [{ minLength: 1 }],
-          not: { type: 'integer' }
-        };
+          not: schemaMother.integer()
+        });
 
         const result = coerceHeaderValue({ value: '123', schema });
 
@@ -301,8 +274,8 @@ describe('coercion utility unit tests', () => {
       });
 
       it('should still allow coercion for untyped outer schemas', () => {
-        const schema: OpenAPIV3.SchemaObject = {
-          not: { type: 'integer' }
+        const schema = {
+          not: schemaMother.integer()
         };
 
         const result = coerceHeaderValue({ value: '123', schema });
@@ -311,10 +284,10 @@ describe('coercion utility unit tests', () => {
       });
 
       it('should preserve and not overwrite a selected composition candidate when applying negation isolation', () => {
-        const schema: OpenAPIV3.SchemaObject = {
-          oneOf: [{ type: 'integer' }, { type: 'string' }],
-          not: { type: 'integer' }
-        };
+        const schema = schemaMother.oneOf(
+          [schemaMother.integer(), schemaMother.string()],
+          { not: schemaMother.integer() }
+        );
 
         const result = coerceHeaderValue({ value: '123', schema });
 
@@ -361,11 +334,10 @@ describe('coercion utility unit tests', () => {
 
   describe('Additional coverage edge cases', () => {
     it('should skip nested unresolved ref inside not schema during negation isolation (T012)', () => {
-      const schema: OpenAPIV3.SchemaObject = {
-        type: 'string',
+      const schema = schemaMother.string({
         not: { $ref: '#/components/schemas/Invalid' }
-      };
-      const ctx = new ValidationContext();
+      });
+      const ctx = contextMother.empty();
 
       const result = coerceHeaderValue({ value: '123', schema, ctx });
 
@@ -373,9 +345,7 @@ describe('coercion utility unit tests', () => {
     });
 
     it('should handle falsy schemas in polymorphic recursion checks (T013)', () => {
-      const schema: OpenAPIV3.SchemaObject = {
-        allOf: [undefined] as unknown as OpenAPIV3.SchemaObject[]
-      };
+      const schema = schemaMother.allOf([undefined] as unknown as OpenAPIV3.SchemaObject[]);
 
       const result = coerceHeaderValue({ value: '123', schema });
 
@@ -384,7 +354,7 @@ describe('coercion utility unit tests', () => {
 
     it('should return the original value in coerceHeaderValue if the schema resolves to falsy (T014)', () => {
       const schema = { $ref: '#/invalid' };
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
 
       const result = coerceHeaderValue({ value: '123', schema, ctx });
 
@@ -392,12 +362,9 @@ describe('coercion utility unit tests', () => {
     });
 
     it('should correctly coerce polymorphic items inside arrays instead of validating items against the array boundary schema (T015)', () => {
-      const schema: OpenAPIV3.SchemaObject = {
-        type: 'array',
-        items: {
-          oneOf: [{ type: 'integer' }, { type: 'string' }]
-        }
-      };
+      const schema = schemaMother.array({
+        items: schemaMother.oneOf([schemaMother.integer(), schemaMother.string()])
+      });
 
       const result = coerceHeaderValue({
         value: ['123', 'abc'],
@@ -414,7 +381,7 @@ describe('core/coercion optimizations', () => {
     {
       description:
         'should coerce correctly using oneOf header without relying on arrays allocations',
-      schema: { oneOf: [{ type: 'number' as const }] },
+      schema: { oneOf: [schemaMother.number()] },
       value: '42',
       expected: 42
     },
@@ -426,7 +393,7 @@ describe('core/coercion optimizations', () => {
       expected: true
     }
   ])('$description', ({ schema, value, expected }) => {
-    const ctx = new ValidationContext();
+    const ctx = contextMother.empty();
 
     const result = coerceHeaderValue({ value, schema, ctx });
 
@@ -439,7 +406,7 @@ describe('core/coercion optimizations', () => {
         schemaMother.oneOf([schemaMother.integer(), schemaMother.string()]),
         schemaMother.not(schemaMother.boolean())
       ]);
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
 
       const result = coerceHeaderValue({
         value: 'true',
@@ -456,7 +423,7 @@ describe('core/coercion optimizations', () => {
       const schema = schemaMother.empty({
         items: schemaMother.integer()
       });
-      const ctx = new ValidationContext();
+      const ctx = contextMother.empty();
 
       const result = coerceHeaderValue({
         value: ['1', '2'],

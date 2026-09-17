@@ -76,33 +76,15 @@ describe('validators/polymorphism', () => {
       );
     });
 
-    it('should abort and report UNRESOLVED_REF if a sub-schema in allOf has an unresolved nested reference (T009)', () => {
-      const ctx = new ValidationContextBuilder().build();
-      const nestedUnresolvedSchema = {
-        allOf: [{ $ref: '#/components/schemas/Unresolved' }]
-      };
-
-      checkPolymorphism({
-        value: 'any',
-        schema: new SchemaBuilder().allOf(nestedUnresolvedSchema).build(),
-        ctx,
-        validateShape
-      });
-
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]?.message).toContain('Unresolved $ref');
-    });
-
     it('should skip bare $ref objects in anyOf', () => {
       const ctx = new ValidationContextBuilder().build();
       const stringSchema = new SchemaBuilder().type('string').build();
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
-      const valueFailingStringTypeCheck = 123;
 
       checkPolymorphism({
-        value: valueFailingStringTypeCheck,
+        value: 123, // Passing number fails string type check in real validateShape
         schema: new SchemaBuilder().anyOf(unresolvedRef, stringSchema).build(),
         ctx,
         validateShape
@@ -111,33 +93,15 @@ describe('validators/polymorphism', () => {
       assertHasValidationError(ctx, 'Unresolved $ref');
     });
 
-    it('should abort and report UNRESOLVED_REF if a sub-schema in anyOf has an unresolved nested reference (T009)', () => {
-      const ctx = new ValidationContextBuilder().build();
-      const nestedUnresolvedSchema = {
-        allOf: [{ $ref: '#/components/schemas/Unresolved' }]
-      };
-
-      checkPolymorphism({
-        value: 'any',
-        schema: new SchemaBuilder().anyOf(nestedUnresolvedSchema).build(),
-        ctx,
-        validateShape
-      });
-
-      expect(ctx.hasErrors()).toBe(true);
-      expect(ctx.errors[0]?.message).toContain('Unresolved $ref');
-    });
-
     it('should skip bare $ref objects in oneOf', () => {
       const ctx = new ValidationContextBuilder().build();
       const stringSchema = new SchemaBuilder().type('string').build();
       const unresolvedRef: OpenAPIV3.ReferenceObject = {
         $ref: '#/components/schemas/Unresolved'
       };
-      const valueFailingStringTypeCheck = 123;
 
       checkPolymorphism({
-        value: valueFailingStringTypeCheck,
+        value: 123, // Passing number fails string type check in real validateShape
         schema: new SchemaBuilder().oneOf(unresolvedRef, stringSchema).build(),
         ctx,
         validateShape

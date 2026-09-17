@@ -1,9 +1,13 @@
 import type { OpenAPIV3 } from 'openapi-types';
-import { ValidationContext } from '../../src/core/ValidationContext.js';
+import {
+  ValidationContext,
+  type ValidationIssue
+} from '../../src/core/ValidationContext.js';
 
 export class ValidationContextBuilder {
   private spec?: OpenAPIV3.Document;
   private visited: Set<object> = new Set<object>();
+  private issues: ValidationIssue[] = [];
 
   withSpec(spec: OpenAPIV3.Document): this {
     this.spec = spec;
@@ -15,7 +19,16 @@ export class ValidationContextBuilder {
     return this;
   }
 
+  withIssues(issues: ValidationIssue[]): this {
+    this.issues = issues;
+    return this;
+  }
+
   build(): ValidationContext {
-    return new ValidationContext({ spec: this.spec, visited: this.visited });
+    return new ValidationContext({
+      spec: this.spec,
+      visited: this.visited,
+      issues: this.issues
+    });
   }
 }

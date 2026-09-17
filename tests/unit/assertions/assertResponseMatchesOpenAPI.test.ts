@@ -1,7 +1,8 @@
+import { DocumentBuilder } from "../../helpers/DocumentBuilder.js";
+import { schemaMother } from "../../helpers/schemaMother.js";
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { assertResponseMatchesOpenAPI } from '../../../src/assertions/assertResponseMatchesOpenAPI.js';
 import * as loader from '../../../src/openapi/loader.js';
-import type { OpenAPIV3 } from 'openapi-types';
 
 vi.mock('../../../src/openapi/loader.js', () => {
   return {
@@ -15,31 +16,23 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
   });
 
   it('should throw an error when a header spec itself is an unresolved $ref', async () => {
-    const mockSpec: OpenAPIV3.Document = {
-      openapi: '3.0.0',
-      info: { title: 'Test', version: '1.0.0' },
-      paths: {
-        '/test-ref': {
-          get: {
-            responses: {
-              '200': {
-                description: 'OK',
-                headers: {
-                  'X-Unresolved-Header': {
-                    $ref: '#/components/headers/SomeHeader'
-                  }
-                },
-                content: {
-                  'application/json': {
-                    schema: { type: 'object' }
+    const mockSpec = new DocumentBuilder().withPath('/test-ref', 'get', {
+                responses: {
+                  '200': {
+                    description: 'OK',
+                    headers: {
+                      'X-Unresolved-Header': {
+                        $ref: '#/components/headers/SomeHeader'
+                      }
+                    },
+                    content: {
+                      'application/json': {
+                        schema: schemaMother.object()
+                      }
+                    }
                   }
                 }
-              }
-            }
-          }
-        }
-      }
-    };
+              }).build();
 
     vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -60,33 +53,25 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
   });
 
   it('should throw an error when a header schema is an unresolved $ref', async () => {
-    const mockSpec: OpenAPIV3.Document = {
-      openapi: '3.0.0',
-      info: { title: 'Test', version: '1.0.0' },
-      paths: {
-        '/test-ref': {
-          get: {
-            responses: {
-              '200': {
-                description: 'OK',
-                headers: {
-                  'X-Unresolved-Schema': {
-                    schema: {
-                      $ref: '#/components/schemas/SomeSchema'
+    const mockSpec = new DocumentBuilder().withPath('/test-ref', 'get', {
+                responses: {
+                  '200': {
+                    description: 'OK',
+                    headers: {
+                      'X-Unresolved-Schema': {
+                        schema: {
+                          $ref: '#/components/schemas/SomeSchema'
+                        }
+                      }
+                    },
+                    content: {
+                      'application/json': {
+                        schema: schemaMother.object()
+                      }
                     }
                   }
-                },
-                content: {
-                  'application/json': {
-                    schema: { type: 'object' }
-                  }
                 }
-              }
-            }
-          }
-        }
-      }
-    };
+              }).build();
 
     vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -107,33 +92,25 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
   });
 
   it('should fail when a mediaTypeObject contains an unresolved $ref schema', async () => {
-    const mockSpec: OpenAPIV3.Document = {
-      openapi: '3.0.0',
-      info: { title: 'Test', version: '1.0.0' },
-      paths: {
-        '/test-headers': {
-          get: {
-            responses: {
-              '200': {
-                description: 'OK',
-                headers: {
-                  'X-Ref-Header': {
-                    content: {
-                      'application/json': {
-                        schema: { $ref: '#/components/schemas/SomeSchema' }
+    const mockSpec = new DocumentBuilder().withPath('/test-headers', 'get', {
+                responses: {
+                  '200': {
+                    description: 'OK',
+                    headers: {
+                      'X-Ref-Header': {
+                        content: {
+                          'application/json': {
+                            schema: { $ref: '#/components/schemas/SomeSchema' }
+                          }
+                        }
                       }
+                    },
+                    content: {
+                      'application/json': { schema: schemaMother.object() }
                     }
                   }
-                },
-                content: {
-                  'application/json': { schema: { type: 'object' } }
                 }
-              }
-            }
-          }
-        }
-      }
-    };
+              }).build();
 
     vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -152,34 +129,25 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
   });
 
   it('should coerce large numeric header without precision loss into BigInt (Strict Precision)', async () => {
-    const mockSpec: OpenAPIV3.Document = {
-      openapi: '3.0.0',
-      info: { title: 'Test', version: '1.0.0' },
-      paths: {
-        '/test-large-header': {
-          get: {
-            responses: {
-              '200': {
-                description: 'OK',
-                headers: {
-                  'X-Large-Int': {
-                    schema: {
-                      type: 'integer',
-                      minimum: 9007199254740990n as unknown as number
+    const mockSpec = new DocumentBuilder().withPath('/test-large-header', 'get', {
+                responses: {
+                  '200': {
+                    description: 'OK',
+                    headers: {
+                      'X-Large-Int': {
+                        schema: schemaMother.integer({
+                          minimum: 9007199254740990n as unknown as number
+                        })
+                      }
+                    },
+                    content: {
+                      'application/json': {
+                        schema: schemaMother.object()
+                      }
                     }
                   }
-                },
-                content: {
-                  'application/json': {
-                    schema: { type: 'object' }
-                  }
                 }
-              }
-            }
-          }
-        }
-      }
-    };
+              }).build();
 
     vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -198,34 +166,25 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
   });
 
   it('should fail with large numeric header violating minimum constraint (Strict Precision)', async () => {
-    const mockSpec: OpenAPIV3.Document = {
-      openapi: '3.0.0',
-      info: { title: 'Test', version: '1.0.0' },
-      paths: {
-        '/test-large-header-fail': {
-          get: {
-            responses: {
-              '200': {
-                description: 'OK',
-                headers: {
-                  'X-Large-Int': {
-                    schema: {
-                      type: 'integer',
-                      minimum: 9007199254740995n as unknown as number
+    const mockSpec = new DocumentBuilder().withPath('/test-large-header-fail', 'get', {
+                responses: {
+                  '200': {
+                    description: 'OK',
+                    headers: {
+                      'X-Large-Int': {
+                        schema: schemaMother.integer({
+                          minimum: 9007199254740995n as unknown as number
+                        })
+                      }
+                    },
+                    content: {
+                      'application/json': {
+                        schema: schemaMother.object()
+                      }
                     }
                   }
-                },
-                content: {
-                  'application/json': {
-                    schema: { type: 'object' }
-                  }
                 }
-              }
-            }
-          }
-        }
-      }
-    };
+              }).build();
 
     vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -246,33 +205,23 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
   });
 
   it('should fail validation when a large float header is evaluated against an integer schema (Strict Precision)', async () => {
-    const mockSpec: OpenAPIV3.Document = {
-      openapi: '3.0.0',
-      info: { title: 'Test', version: '1.0.0' },
-      paths: {
-        '/test-large-float-header': {
-          get: {
-            responses: {
-              '200': {
-                description: 'OK',
-                headers: {
-                  'X-Large-Float': {
-                    schema: {
-                      type: 'integer'
+    const mockSpec = new DocumentBuilder().withPath('/test-large-float-header', 'get', {
+                responses: {
+                  '200': {
+                    description: 'OK',
+                    headers: {
+                      'X-Large-Float': {
+                        schema: schemaMother.integer()
+                      }
+                    },
+                    content: {
+                      'application/json': {
+                        schema: schemaMother.object()
+                      }
                     }
                   }
-                },
-                content: {
-                  'application/json': {
-                    schema: { type: 'object' }
-                  }
                 }
-              }
-            }
-          }
-        }
-      }
-    };
+              }).build();
 
     vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -292,21 +241,13 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
 
   describe('isResponseBodyEmpty with empty arrays', () => {
     it('should fail validation when an empty array [] is passed to a route declared without schema/content', async () => {
-      const mockSpec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {
-          '/test-no-content': {
-            get: {
-              responses: {
-                '204': {
-                  description: 'No Content'
-                }
-              }
-            }
-          }
-        }
-      };
+      const mockSpec = new DocumentBuilder().withPath('/test-no-content', 'get', {
+                    responses: {
+                      '204': {
+                        description: 'No Content'
+                      }
+                    }
+                  }).build();
 
       vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -322,21 +263,13 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
     });
 
     it('should succeed validation when undefined/null is passed to a route declared without schema/content', async () => {
-      const mockSpec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {
-          '/test-no-content': {
-            get: {
-              responses: {
-                '204': {
-                  description: 'No Content'
-                }
-              }
-            }
-          }
-        }
-      };
+      const mockSpec = new DocumentBuilder().withPath('/test-no-content', 'get', {
+                    responses: {
+                      '204': {
+                        description: 'No Content'
+                      }
+                    }
+                  }).build();
 
       vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 
@@ -354,35 +287,27 @@ describe('assertResponseMatchesOpenAPI - Header $ref Validation (Unit)', () => {
 
   describe('content-backed header coercion', () => {
     it('should coerce string values to match the target schema under content-backed headers (e.g., text/plain with integer)', async () => {
-      const mockSpec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {
-          '/test-content-header': {
-            get: {
-              responses: {
-                '200': {
-                  description: 'OK',
-                  headers: {
-                    'X-Content-Int': {
-                      content: {
-                        'text/plain': {
-                          schema: { type: 'integer' }
+      const mockSpec = new DocumentBuilder().withPath('/test-content-header', 'get', {
+                    responses: {
+                      '200': {
+                        description: 'OK',
+                        headers: {
+                          'X-Content-Int': {
+                            content: {
+                              'text/plain': {
+                                schema: schemaMother.integer()
+                              }
+                            }
+                          }
+                        },
+                        content: {
+                          'application/json': {
+                            schema: schemaMother.object()
+                          }
                         }
                       }
                     }
-                  },
-                  content: {
-                    'application/json': {
-                      schema: { type: 'object' }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      };
+                  }).build();
 
       vi.mocked(loader.loadSpec).mockResolvedValueOnce(mockSpec);
 

@@ -1,3 +1,5 @@
+import { schemaMother } from '../../helpers/schemaMother.js';
+import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
 import { describe, it, expect } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 import {
@@ -9,42 +11,19 @@ import {
 describe('validators/pointers', () => {
   describe('resolvePointer', () => {
     it('should resolve standard JSON pointers', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            User: { type: 'object' }
-          }
-        }
-      };
+      const spec = new DocumentBuilder().withSchema('User', schemaMother.object()).build();
       const result = resolvePointer(spec, '#/components/schemas/User');
       expect(result).toBe(spec.components?.schemas?.User);
     });
 
     it('should resolve the empty pointer "#" to the document root', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {}
-      };
+      const spec = new DocumentBuilder().build();
       const result = resolvePointer(spec, '#');
       expect(result).toBe(spec);
     });
 
     it('should retrieve resolved pointers from cache on subsequent resolvePointer lookups', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            User: { type: 'object' }
-          }
-        }
-      };
+      const spec = new DocumentBuilder().withSchema('User', schemaMother.object()).build();
       const result1 = resolvePointer(spec, '#/components/schemas/User');
       const result2 = resolvePointer(spec, '#/components/schemas/User');
       expect(result1).toBe(spec.components?.schemas?.User);
@@ -52,28 +31,13 @@ describe('validators/pointers', () => {
     });
 
     it('should return undefined for invalid or non-matching pointers', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {}
-      };
+      const spec = new DocumentBuilder().build();
       expect(resolvePointer(spec, '#/components/schemas/User')).toBeUndefined();
       expect(resolvePointer(spec, 'components/schemas/User')).toBeUndefined();
     });
 
     it('should support RFC 6901 escaping for ~1 and ~0', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            'User/Type': { type: 'object' },
-            'User~Name': { type: 'string' }
-          }
-        }
-      };
+      const spec = new DocumentBuilder().withSchema('User/Type', schemaMother.object()).withSchema('User~Name', schemaMother.string()).build();
       expect(resolvePointer(spec, '#/components/schemas/User~1Type')).toBe(
         spec.components?.schemas?.['User/Type']
       );
@@ -83,11 +47,7 @@ describe('validators/pointers', () => {
     });
 
     it('should return undefined when attempting to read inherited Object prototype properties', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {}
-      };
+      const spec = new DocumentBuilder().build();
 
       expect(resolvePointer(spec, '#/__proto__')).toBeUndefined();
       expect(resolvePointer(spec, '#/info/toString')).toBeUndefined();
@@ -95,11 +55,7 @@ describe('validators/pointers', () => {
     });
 
     it('should exit traversal and return undefined upon encountering a primitive value', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'TestTitle', version: '1.0.0' },
-        paths: {}
-      };
+      const spec = new DocumentBuilder().build(); // Assuming info.title isn't strictly checked
 
       const invalidPointerAttemptingToReadStringProperty =
         '#/info/title/invalidTraverse';
@@ -109,16 +65,7 @@ describe('validators/pointers', () => {
     });
 
     it('should percent-decode URI-fragment JSON pointer parts during resolve', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            'User Type': { type: 'object' }
-          }
-        }
-      };
+      const spec = new DocumentBuilder().withSchema('User Type', schemaMother.object()).build();
       expect(resolvePointer(spec, '#/components/schemas/User%20Type')).toBe(
         spec.components?.schemas?.['User Type']
       );
@@ -141,16 +88,7 @@ describe('validators/pointers', () => {
     });
 
     it('should handle malformed percent-encoding safely inside resolvePointer', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            'User%Type': { type: 'object' }
-          }
-        }
-      };
+      const spec = new DocumentBuilder().withSchema('User%Type', schemaMother.object()).build();
       expect(resolvePointer(spec, '#/components/schemas/User%Type')).toBe(
         spec.components?.schemas?.['User%Type']
       );
@@ -162,27 +100,9 @@ describe('validators/pointers', () => {
       const targetA = { type: 'object' as const, title: 'TargetA' };
       const targetB = { type: 'object' as const, title: 'TargetB' };
 
-      const specA = {
-        openapi: '3.0.0',
-        info: { title: 'SpecA', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: targetA
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const specA = new DocumentBuilder().withSchema('Target', targetA).build();
 
-      const specB = {
-        openapi: '3.0.0',
-        info: { title: 'SpecB', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: targetB
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const specB = new DocumentBuilder().withSchema('Target', targetB).build();
 
       const sharedSchemasArray = [targetA, targetB];
 
@@ -213,16 +133,7 @@ describe('validators/pointers', () => {
         properties: { propB: { type: 'number' as const } }
       } as OpenAPIV3.SchemaObject;
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: targetB
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().withSchema('Target', targetB).build();
 
       const sharedSchemasArray = [targetA, targetB];
 
@@ -251,16 +162,7 @@ describe('validators/pointers', () => {
         properties: { propC: { type: 'boolean' as const } }
       } as OpenAPIV3.SchemaObject;
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: targetSpec
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().withSchema('Target', targetSpec).build();
 
       const sharedSchemasArray = [targetA, targetB];
 
@@ -274,16 +176,7 @@ describe('validators/pointers', () => {
 
     it('should resolve short pointers by implicitly prepending the OpenAPI 3 schema path', () => {
       const targetSchema = { type: 'object' as const, title: 'Target' };
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: targetSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().withSchema('Target', targetSchema).build();
 
       const shortPointer = 'Target';
       const result = findSchemaByPointer({
@@ -301,16 +194,7 @@ describe('validators/pointers', () => {
         title: 'Target'
       };
 
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: exactReferenceTarget
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().withSchema('Target', exactReferenceTarget).build();
 
       const result = findSchemaByPointer({
         spec,
@@ -321,16 +205,7 @@ describe('validators/pointers', () => {
     });
 
     it('should return undefined when pointer resolves to a value that is not a valid schema object', () => {
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: 'invalid-primitive-not-an-object'
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().withSchema('Target', 'invalid-primitive-not-an-object' as unknown as OpenAPIV3.SchemaObject).build();
 
       const result = findSchemaByPointer({
         spec,
@@ -341,15 +216,10 @@ describe('validators/pointers', () => {
     });
 
     it('should allow resolvePointer to resolve non-schema targets, while findSchemaByPointer returns undefined for them', () => {
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Test Title', version: '1.0.0' },
-        paths: {},
-        components: {}
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().build(); // We can't set info.title easily but it's ok for the test since we just need the resolve to return something.
 
       const resolved = resolvePointer(spec, '#/info/title');
-      expect(resolved).toBe('Test Title');
+      expect(resolved).toBe('Test'); // Using default DocumentBuilder title
 
       const result = findSchemaByPointer({
         spec,
@@ -361,16 +231,7 @@ describe('validators/pointers', () => {
 
     it('should bound search cache and evict old entries to prevent memory leaks', () => {
       const targetSchema = { type: 'object' as const, title: 'Target' };
-      const spec = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            Target: targetSchema
-          }
-        }
-      } as unknown as OpenAPIV3.Document;
+      const spec = new DocumentBuilder().withSchema('Target', targetSchema).build();
 
       const emptySchemas: OpenAPIV3.SchemaObject[] = [];
       for (let i = 0; i < 1005; i++) {
@@ -406,25 +267,11 @@ describe('validators/pointers', () => {
     });
 
     it('should match schema on title when titles are equal but objects are not deep strict equal (T015)', () => {
-      const spec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Spec', version: '1.0.0' },
-        paths: {},
-        components: {
-          schemas: {
-            User: {
-              type: 'object',
-              title: 'User',
-              properties: { id: { type: 'string' } }
-            }
-          }
-        }
-      };
-      const targetInSchemas: OpenAPIV3.SchemaObject = {
-        type: 'object',
+      const spec = new DocumentBuilder().withSchema('User', schemaMother.object({ title: 'User', properties: { id: schemaMother.string() } })).build();
+      const targetInSchemas = schemaMother.object({
         title: 'User',
-        properties: { name: { type: 'string' } }
-      };
+        properties: { name: schemaMother.string() }
+      });
 
       const result = findSchemaByPointer({
         spec,

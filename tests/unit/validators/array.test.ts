@@ -8,7 +8,6 @@ import {
   assertHasValidationError
 } from '../../helpers/assertions.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('validators/array', () => {
@@ -21,13 +20,13 @@ describe('validators/array', () => {
   describe('Structural, Circular, and Limits', () => {
     it('should return early from validateArrayItems if itemsSchema is not a valid SchemaObject', () => {
       const validateShapeSpy = vi.fn(validateShape);
+      const schema = schemaMother.array({
+        items: { $ref: '#/components/schemas/SimpleUser' }
+      });
 
       validateArray({
         value: [1, 2, 3],
-        schema: new SchemaBuilder()
-          .type('array')
-          .items({ $ref: '#/components/schemas/SimpleUser' })
-          .build(),
+        schema: schema,
         ctx,
         validateShape: validateShapeSpy
       });
@@ -54,12 +53,10 @@ describe('validators/array', () => {
     });
 
     it('should correctly report "null" as the received type when array validation fails for a null value', () => {
+      const schema = schemaMother.array({ items: schemaMother.empty() });
       validateArray({
         value: null,
-        schema: new SchemaBuilder()
-          .type('array')
-          .items(schemaMother.empty())
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -71,11 +68,10 @@ describe('validators/array', () => {
   describe('Uniqueness and fast paths (validateArrayUnique via validateArray)', () => {
     it('should correctly validate uniqueness for primitives and objects', () => {
       const value = [1, 2, 3, 2];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -89,11 +85,10 @@ describe('validators/array', () => {
 
     it('should handle object uniqueness correctly', () => {
       const value = [{ a: 1 }, { b: 2 }, { a: 1 }];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -110,11 +105,10 @@ describe('validators/array', () => {
         { a: 1, b: 2 },
         { b: 2, a: 1 }
       ];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -131,11 +125,10 @@ describe('validators/array', () => {
         { a: null, b: undefined, c: [1, undefined, 2] },
         { c: [1, undefined, 2], a: null }
       ];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -153,11 +146,10 @@ describe('validators/array', () => {
       const cyclicObj2 = { name: 'cyclic', self: {} as unknown };
       cyclicObj2.self = cyclicObj2;
       const value = [cyclicObj1, cyclicObj2];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -171,11 +163,10 @@ describe('validators/array', () => {
 
     it('should correctly handle uniqueItems containing bigint', () => {
       const value = [1n, 2n, 1n];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -189,11 +180,10 @@ describe('validators/array', () => {
 
     it('should correctly handle object uniqueness containing bigint', () => {
       const value = [{ x: 1n }, { x: 2n }, { x: 1n }];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -207,11 +197,10 @@ describe('validators/array', () => {
 
     it('should distinguish between number and bigint values in nested object uniqueItems comparison', () => {
       const value = [{ x: 1 }, { x: 1n }];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,
@@ -228,11 +217,10 @@ describe('validators/array', () => {
       cyclicObj.self = cyclicObj;
       const literalObj = { self: '[Circular]' };
       const value = [cyclicObj, literalObj];
-      const schema = new SchemaBuilder()
-        .type('array')
-        .uniqueItems(true)
-        .items(schemaMother.empty())
-        .build();
+      const schema = schemaMother.array({
+        uniqueItems: true,
+        items: schemaMother.empty()
+      });
 
       validateArray({
         value,

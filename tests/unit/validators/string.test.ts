@@ -7,7 +7,7 @@ import {
   assertHasValidationError
 } from '../../helpers/assertions.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
+import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('validators/string', () => {
   let ctx: ReturnType<typeof contextMother.empty>;
@@ -18,9 +18,10 @@ describe('validators/string', () => {
 
   describe('Robustness tests for string format (via validateBaseType)', () => {
     it('should fall back to default format registry when customFormats contains a non-function value', () => {
+      const schema = schemaMother.string({ format: 'uuid' });
       validateBaseType({
         value: 'invalid-uuid',
-        schema: new SchemaBuilder().type('string').format('uuid').build(),
+        schema: schema,
         ctx,
         validateShape,
         customFormats: { uuid: true as unknown as (value: string) => boolean }
@@ -30,9 +31,10 @@ describe('validators/string', () => {
     });
 
     it('should pass validation when value is valid and customFormats contains a non-function value', () => {
+      const schema = schemaMother.string({ format: 'uuid' });
       validateBaseType({
         value: '123e4567-e89b-12d3-a456-426614174000',
-        schema: new SchemaBuilder().type('string').format('uuid').build(),
+        schema: schema,
         ctx,
         validateShape,
         customFormats: { uuid: true as unknown as (value: string) => boolean }

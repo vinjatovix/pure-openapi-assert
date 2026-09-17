@@ -1,5 +1,5 @@
+import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
 import { describe, it, beforeEach, expect } from 'vitest';
-import type { OpenAPIV3 } from 'openapi-types';
 import { validateShape } from '../../../src/validators/shape.js';
 import { ValidationContext } from '../../../src/core/ValidationContext.js';
 import {
@@ -32,10 +32,10 @@ describe('validators/not', () => {
     });
 
     it('should reject null payloads when nullable is true', () => {
-      const schema: OpenAPIV3.SchemaObject = {
+      const schema = schemaMother.empty({
         nullable: true,
-        not: {}
-      };
+        not: schemaMother.empty()
+      });
 
       validateShape({ value: null, schema, ctx, validateShape });
 
@@ -205,12 +205,11 @@ describe('validators/not', () => {
     );
 
     it('should safely handle recursion and prevent infinite loops using shared cycle tracking', () => {
-      const recursiveSchema: OpenAPIV3.SchemaObject = {
-        type: 'object',
+      const recursiveSchema = schemaMother.object({
         properties: {
-          value: { type: 'string' }
+          value: schemaMother.string()
         }
-      };
+      });
       recursiveSchema.properties!.next = { not: recursiveSchema };
       const cyclicObj: Record<string, unknown> = { value: 'test' };
       cyclicObj.next = cyclicObj;
@@ -226,16 +225,10 @@ describe('validators/not', () => {
     });
 
     it('should propagate unresolved references from negated schema to parent context instead of matching as non-match', () => {
-      const mockSpec: OpenAPIV3.Document = {
-        openapi: '3.0.0',
-        info: { title: 'Test', version: '1.0.0' },
-        paths: {}
-      };
-      const schema: OpenAPIV3.SchemaObject = {
-        not: {
-          allOf: [{ $ref: '#/components/schemas/Missing' }]
-        }
-      };
+      const mockSpec = new DocumentBuilder().build();
+      const schema = schemaMother.not(
+        schemaMother.allOf([{ $ref: '#/components/schemas/Missing' }])
+      );
       const testCtx = new ValidationContext({ spec: mockSpec });
 
       validateShape({
@@ -253,17 +246,15 @@ describe('validators/not', () => {
     });
 
     it('should separate visited cycle tracking for negated schema to avoid false matches', () => {
-      const schema: OpenAPIV3.SchemaObject = {
-        type: 'object',
+      const schema = schemaMother.object({
         properties: {
-          next: {
-            not: {
-              type: 'object',
+          next: schemaMother.not(
+            schemaMother.object({
               required: ['foo']
-            }
-          }
+            })
+          )
         }
-      };
+      });
       const cyclicObj: Record<string, unknown> = {};
       cyclicObj.next = cyclicObj;
 
@@ -278,7 +269,7 @@ describe('validators/not', () => {
     });
 
     it('should safely terminate cyclic negated schemas with cyclic negation error', () => {
-      const cyclicSchema: OpenAPIV3.SchemaObject = {};
+      const cyclicSchema = schemaMother.empty();
       cyclicSchema.not = cyclicSchema;
 
       validateShape({
@@ -431,17 +422,14 @@ describe('validators/not', () => {
       });
 
       it('should safely terminate cyclic negated schemas with cyclic negation error', () => {
-        const recursiveSchema: OpenAPIV3.SchemaObject = {
-          type: 'object',
+        const recursiveSchema = schemaMother.object({
           properties: {
-            value: { type: 'string' }
+            value: schemaMother.string()
           }
-        };
-        recursiveSchema.properties!.next = {
-          not: {
-            oneOf: [recursiveSchema]
-          }
-        };
+        });
+        recursiveSchema.properties!.next = schemaMother.not(
+          schemaMother.oneOf([recursiveSchema])
+        );
         const cyclicObj: Record<string, unknown> = { value: 'test' };
         cyclicObj.next = cyclicObj;
 
@@ -461,10 +449,9 @@ describe('validators/not', () => {
       });
 
       it('should ignore/return early when resolvedNot is falsy because not schema is an invalid ref (T010)', () => {
-        const schema: OpenAPIV3.SchemaObject = {
-          type: 'string',
+        const schema = schemaMother.string({
           not: { $ref: '#/components/schemas/Invalid' }
-        };
+        });
 
         validateShape({
           value: 'test',
