@@ -7,26 +7,12 @@ import {
 import { FIFOCache } from '../core/FIFOCache.js';
 import { isSchemaObject } from '../core/utils.js';
 import { ValidationContext } from '../core/ValidationContext.js';
-
-const pointerCache = new WeakMap<object, FIFOCache<string, unknown>>();
-const schemaPointerMatchCache = new WeakMap<
-  OpenAPIV3.Document,
-  WeakMap<
-    Array<OpenAPIV3.SchemaObject>,
-    FIFOCache<string, OpenAPIV3.SchemaObject | undefined>
-  >
->();
+import { stateManager } from '../core/StateManager.js';
 
 function getOrInitSpecCache(
   spec: OpenAPIV3.Document
 ): FIFOCache<string, unknown> {
-  let specCache = pointerCache.get(spec);
-  if (!specCache) {
-    specCache = new FIFOCache<string, unknown>();
-    pointerCache.set(spec, specCache);
-  }
-
-  return specCache;
+  return stateManager.getOrInitPointerCache(spec);
 }
 
 function traversePointerParts(
@@ -88,19 +74,7 @@ function getOrInitPointerMatchCache(
   spec: OpenAPIV3.Document,
   schemas: Array<OpenAPIV3.SchemaObject>
 ): FIFOCache<string, OpenAPIV3.SchemaObject | undefined> {
-  let docCache = schemaPointerMatchCache.get(spec);
-  if (!docCache) {
-    docCache = new WeakMap();
-    schemaPointerMatchCache.set(spec, docCache);
-  }
-
-  let cache = docCache.get(schemas);
-  if (!cache) {
-    cache = new FIFOCache<string, OpenAPIV3.SchemaObject | undefined>();
-    docCache.set(schemas, cache);
-  }
-
-  return cache;
+  return stateManager.getOrInitSchemaPointerMatchCache(spec, schemas);
 }
 
 function findBestSchemaMatch(

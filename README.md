@@ -5,6 +5,7 @@ State-of-the-art, ultra-lightweight, and high-performance OpenAPI 3.0 response c
 [![NPM Version](https://img.shields.io/npm/v/pure-openapi-assert.svg)](https://www.npmjs.com/package/pure-openapi-assert)
 [![CI Status](https://github.com/vinjatovix/pure-openapi-assert/actions/workflows/ci.yml/badge.svg)](https://github.com/vinjatovix/pure-openapi-assert/actions)
 [![Test Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/vinjatovix/feac8a8435ec9adc322d155a51ac5079/raw/coverage.json)](https://github.com/vinjatovix/pure-openapi-assert)
+[![DeepScan grade](https://deepscan.io/api/teams/30684/projects/32433/branches/1073555/badge/grade.svg)](https://deepscan.io/dashboard#view=project&tid=30684&pid=32433&bid=1073555)
 [![License](https://img.shields.io/npm/l/pure-openapi-assert.svg)](https://github.com/vinjatovix/pure-openapi-assert/blob/main/LICENSE)
 
 ---
@@ -21,6 +22,17 @@ Most traditional testing setups rely on AJV or other JSON Schema engines to vali
 - **Polymorphism Support:** Built-in high-performance evaluation of polymorphic compositions (`oneOf`, `anyOf`, `allOf`) with explicit support for `discriminator` routing to avoid evaluating irrelevant schema branches.
 - **Negation Support (`not` Keyword):** Full compliance with the OpenAPI 3.0 `not` directive. Payloads matching schemas specified under a `not` block are strictly rejected, while non-matching payloads are accepted cleanly with zero error leakages or context pollution.
 - **Comprehensive Developer Experience (DX):** Validation failures are compiled into structured, highly readable nested property paths (e.g. `[body.profile.address.zipCode]`) for immediate root-cause diagnosis.
+
+---
+
+## ⏱️ Intelligent Cache Invalidation & Watch Mode (Perfect DX)
+
+API testing relies heavily on active **Watch Mode** loops (`vitest --watch` or `jest --watch`) to provide developers with instant feedback during TDD cycles. Traditionally, libraries cache OpenAPI specifications statically in memory, forcing developers to manually kill and restart their test runners every time they modify their OpenAPI specification file to see schema changes.
+
+`pure-openapi-assert` natively solves this bottleneck by incorporating a **Centralized State Manager** with **Smart Cache Invalidation** based on the file modification time (`mtime`):
+
+- **Automatic Schema Re-parsing:** Every time you run an assertion in Watch Mode, the library checks the spec file's `mtimeMs` on disk. If you edited and saved the spec file, `pure-openapi-assert` instantly invalidates the old cache, purges all associated JSON pointer resolutions, and parses the fresh OpenAPI document on-the-fly. **No test runner restarts required!**
+- **Same-Tick I/O Throttling:** To satisfy our **<3ms hot run SLO** and prevent hammering the filesystem when executing hundreds of parallel assertions, the state manager features a microtask-buffered cache. It limits disk `stat` reads to **exactly once per event-loop tick** (`queueMicrotask`), ensuring supreme performance and zero disk bottlenecks.
 
 ---
 
