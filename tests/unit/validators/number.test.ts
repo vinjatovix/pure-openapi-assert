@@ -14,7 +14,6 @@ import {
   assertHasValidationError
 } from '../../helpers/assertions.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('validators/number', () => {
@@ -81,9 +80,10 @@ describe('validators/number', () => {
 
   describe('validateNumberConstraints bounds checks', () => {
     it('should return early if minimum is missing', () => {
+      const schema = schemaMother.empty();
       validateNumberConstraints({
         value: 10,
-        schema: schemaMother.empty(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -92,9 +92,9 @@ describe('validators/number', () => {
     });
 
     it('should return early if minimum is explicitly undefined (JS consumer)', () => {
-      const schema = new SchemaBuilder()
-        .minimum(undefined as unknown as number)
-        .build();
+      const schema = schemaMother.empty({
+        minimum: undefined as unknown as number
+      });
 
       validateNumberConstraints({
         value: 10,
@@ -107,9 +107,10 @@ describe('validators/number', () => {
     });
 
     it('should return early if maximum is missing', () => {
+      const schema = schemaMother.empty();
       validateNumberConstraints({
         value: 10,
-        schema: schemaMother.empty(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -118,9 +119,9 @@ describe('validators/number', () => {
     });
 
     it('should return early if maximum is explicitly undefined (JS consumer)', () => {
-      const schema = new SchemaBuilder()
-        .maximum(undefined as unknown as number)
-        .build();
+      const schema = schemaMother.empty({
+        maximum: undefined as unknown as number
+      });
 
       validateNumberConstraints({
         value: 10,
@@ -135,9 +136,10 @@ describe('validators/number', () => {
 
   describe('MultipleOf base precision validation', () => {
     it('should pass when value is a high-precision decimal multiple of standard floating point step', () => {
+      const schema = schemaMother.empty({ multipleOf: 0.000001 });
       validateNumberConstraints({
         value: 0.000003,
-        schema: new SchemaBuilder().multipleOf(0.000001).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -145,9 +147,10 @@ describe('validators/number', () => {
     });
 
     it('should fail when value is not a high-precision decimal multiple of standard floating point step', () => {
+      const schema = schemaMother.empty({ multipleOf: 0.000001 });
       validateNumberConstraints({
         value: 0.0000035,
-        schema: new SchemaBuilder().multipleOf(0.000001).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -155,9 +158,10 @@ describe('validators/number', () => {
     });
 
     it('should pass when value is in scientific notation and is a valid multiple of scientific step', () => {
+      const schema = schemaMother.empty({ multipleOf: 1e-7 });
       validateNumberConstraints({
         value: 3e-7,
-        schema: new SchemaBuilder().multipleOf(1e-7).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -165,9 +169,10 @@ describe('validators/number', () => {
     });
 
     it('should pass when value is decimal scientific notation and is a valid multiple of decimal scientific step', () => {
+      const schema = schemaMother.empty({ multipleOf: 1.5e-7 });
       validateNumberConstraints({
         value: 4.5e-7,
-        schema: new SchemaBuilder().multipleOf(1.5e-7).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -175,9 +180,10 @@ describe('validators/number', () => {
     });
 
     it('should pass when value is in positive scientific notation and is a valid multiple of positive scientific step', () => {
+      const schema = schemaMother.empty({ multipleOf: 1e18 });
       validateNumberConstraints({
         value: 1e20,
-        schema: new SchemaBuilder().multipleOf(1e18).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -185,7 +191,7 @@ describe('validators/number', () => {
     });
 
     it('should fast path integers', () => {
-      const schema = new SchemaBuilder().type('number').multipleOf(5).build();
+      const schema = schemaMother.number({ multipleOf: 5 });
 
       validateNumberConstraints({
         value: 12,
@@ -243,14 +249,13 @@ describe('validators/number', () => {
 
     describe('Decimal format limits on BigInt', () => {
       it('should pass when exclusiveMinimum is true and value is greater than decimal minimum limit', () => {
+        const schema = schemaMother.int64({
+          minimum: '1.0' as unknown as number,
+          exclusiveMinimum: true
+        });
         validateMinConstraint({
           value: '2',
-          schema: new SchemaBuilder()
-            .type('string')
-            .format('int64')
-            .minimum('1.0' as unknown as number)
-            .exclusiveMinimum(true)
-            .build(),
+          schema: schema,
           ctx,
           validateShape
         });
@@ -258,14 +263,13 @@ describe('validators/number', () => {
       });
 
       it('should fail when exclusiveMinimum is true and value is equal to decimal minimum limit', () => {
+        const schema = schemaMother.int64({
+          minimum: '1.0' as unknown as number,
+          exclusiveMinimum: true
+        });
         validateMinConstraint({
           value: '1',
-          schema: new SchemaBuilder()
-            .type('string')
-            .format('int64')
-            .minimum('1.0' as unknown as number)
-            .exclusiveMinimum(true)
-            .build(),
+          schema: schema,
           ctx,
           validateShape
         });
@@ -276,14 +280,13 @@ describe('validators/number', () => {
       });
 
       it('should pass when exclusiveMaximum is true and value is less than decimal maximum limit', () => {
+        const schema = schemaMother.int64({
+          maximum: '2.0' as unknown as number,
+          exclusiveMaximum: true
+        });
         validateMaxConstraint({
           value: '1',
-          schema: new SchemaBuilder()
-            .type('string')
-            .format('int64')
-            .maximum('2.0' as unknown as number)
-            .exclusiveMaximum(true)
-            .build(),
+          schema: schema,
           ctx,
           validateShape
         });
@@ -291,14 +294,13 @@ describe('validators/number', () => {
       });
 
       it('should fail when exclusiveMaximum is true and value is equal to decimal maximum limit', () => {
+        const schema = schemaMother.int64({
+          maximum: '2.0' as unknown as number,
+          exclusiveMaximum: true
+        });
         validateMaxConstraint({
           value: '2',
-          schema: new SchemaBuilder()
-            .type('string')
-            .format('int64')
-            .maximum('2.0' as unknown as number)
-            .exclusiveMaximum(true)
-            .build(),
+          schema: schema,
           ctx,
           validateShape
         });
@@ -371,13 +373,10 @@ describe('validators/number', () => {
     });
 
     it('should ignore empty string minimum bound gracefully without treating it as 0', () => {
+      const schema = schemaMother.int64({ minimum: '' as unknown as number });
       validateMinConstraint({
         value: '-10',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .minimum('' as unknown as number)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -385,13 +384,12 @@ describe('validators/number', () => {
     });
 
     it('should ignore empty string maximum bound gracefully without treating it as 0', () => {
+      const schema = schemaMother.int64({
+        maximum: '   ' as unknown as number
+      });
       validateMaxConstraint({
         value: '10',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .maximum('   ' as unknown as number)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -403,13 +401,12 @@ describe('validators/number', () => {
     });
 
     it('should handle fractional bounds that parse as integers (e.g. "10.0")', () => {
+      const schema = schemaMother.int64({
+        minimum: '10.0' as unknown as number
+      });
       validateMinConstraint({
         value: '9',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .minimum('10.0' as unknown as number)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -425,13 +422,12 @@ describe('validators/number', () => {
     });
 
     it('should return undefined if bound parses to NaN', () => {
+      const schema = schemaMother.int64({
+        minimum: 'not-a-number' as unknown as number
+      });
       validateMinConstraint({
         value: '10',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .minimum('not-a-number' as unknown as number)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -515,13 +511,12 @@ describe('validators/number', () => {
 
     describe('parseBigIntBound handling', () => {
       it('should return undefined when bound is null', () => {
+        const schema = schemaMother.int64({
+          minimum: null as unknown as number
+        });
         validateMinConstraint({
           value: '-10',
-          schema: new SchemaBuilder()
-            .type('string')
-            .format('int64')
-            .minimum(null as unknown as number)
-            .build(),
+          schema: schema,
           ctx,
           validateShape
         });
@@ -529,13 +524,10 @@ describe('validators/number', () => {
       });
 
       it('should return undefined when bound is an unsupported object type', () => {
+        const schema = schemaMother.int64({ minimum: {} as unknown as number });
         validateMinConstraint({
           value: '-10',
-          schema: new SchemaBuilder()
-            .type('string')
-            .format('int64')
-            .minimum({} as unknown as number)
-            .build(),
+          schema: schema,
           ctx,
           validateShape
         });
@@ -544,13 +536,10 @@ describe('validators/number', () => {
     });
 
     it('should support schema bound defined directly as bigint', () => {
+      const schema = schemaMother.int64({ minimum: 10n as unknown as number });
       validateMinConstraint({
         value: '9',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .minimum(10n as unknown as number)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -558,26 +547,20 @@ describe('validators/number', () => {
     });
 
     it('should support input value defined directly as native bigint', () => {
+      const schema = schemaMother.int64({ minimum: 10 });
       validateMinConstraint({
         value: 9n,
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .minimum(10)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
       assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
 
       ctx = contextMother.empty();
+      const schema1 = schemaMother.int64({ maximum: 10 });
       validateMaxConstraint({
         value: 11n,
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .maximum(10)
-          .build(),
+        schema: schema1,
         ctx,
         validateShape
       });
@@ -586,11 +569,7 @@ describe('validators/number', () => {
       ctx = contextMother.empty();
       validateMultipleOfConstraint({
         value: 7n,
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .multipleOf(3)
-          .build(),
+        schema: schemaMother.int64({ multipleOf: 3 }),
         ctx,
         validateShape
       });
@@ -598,26 +577,20 @@ describe('validators/number', () => {
     });
 
     it('should support native bigint with integer type in validateShape', () => {
+      const schema = schemaMother.int64({ minimum: 10 });
       validateShape({
         value: 9n,
-        schema: new SchemaBuilder()
-          .type('integer')
-          .format('int64')
-          .minimum(10)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
       assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
 
       ctx = contextMother.empty();
+      const schema1 = schemaMother.int64({ minimum: 10 });
       validateShape({
         value: 10n,
-        schema: new SchemaBuilder()
-          .type('integer')
-          .format('int64')
-          .minimum(10)
-          .build(),
+        schema: schema1,
         ctx,
         validateShape
       });
@@ -625,9 +598,10 @@ describe('validators/number', () => {
 
       ctx = contextMother.empty();
       const valueExceedingInt64Max = 9223372036854775808n;
+      const schema2 = schemaMother.int64();
       validateShape({
         value: valueExceedingInt64Max,
-        schema: new SchemaBuilder().type('integer').format('int64').build(),
+        schema: schema2,
         ctx,
         validateShape
       });
@@ -638,13 +612,10 @@ describe('validators/number', () => {
     });
 
     it('should parse non-empty string bounds successfully in parseBigIntBound', () => {
+      const schema = schemaMother.int64({ minimum: '10' as unknown as number });
       validateMinConstraint({
         value: '9',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('int64')
-          .minimum('10' as unknown as number)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -682,7 +653,7 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 10,
-            schema: new SchemaBuilder().type('number').multipleOf(0).build(),
+            schema: schemaMother.number({ multipleOf: 0 }),
             ctx,
             validateShape
           });
@@ -694,7 +665,7 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 10,
-            schema: new SchemaBuilder().type('number').multipleOf(-2).build(),
+            schema: schemaMother.number({ multipleOf: -2 }),
             ctx,
             validateShape
           });
@@ -706,10 +677,9 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 10,
-            schema: new SchemaBuilder()
-              .type('number')
-              .multipleOf('not-a-number' as unknown as number)
-              .build(),
+            schema: schemaMother.number({
+              multipleOf: 'not-a-number' as unknown as number
+            }),
             ctx,
             validateShape
           });
@@ -721,10 +691,7 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 10,
-            schema: new SchemaBuilder()
-              .type('number')
-              .multipleOf(Infinity)
-              .build(),
+            schema: schemaMother.number({ multipleOf: Infinity }),
             ctx,
             validateShape
           });
@@ -736,10 +703,7 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 10,
-            schema: new SchemaBuilder()
-              .type('number')
-              .multipleOf(Number.MIN_VALUE)
-              .build(),
+            schema: schemaMother.number({ multipleOf: Number.MIN_VALUE }),
             ctx,
             validateShape
           });
@@ -751,11 +715,7 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 10n,
-            schema: new SchemaBuilder()
-              .type('integer')
-              .format('int64')
-              .multipleOf(Number.MIN_VALUE)
-              .build(),
+            schema: schemaMother.int64({ multipleOf: Number.MIN_VALUE }),
             ctx,
             validateShape
           });
@@ -767,10 +727,7 @@ describe('validators/number', () => {
         expect(() => {
           validateMultipleOfConstraint({
             value: 1.0000000001,
-            schema: new SchemaBuilder()
-              .type('number')
-              .multipleOf(1e300)
-              .build(),
+            schema: schemaMother.number({ multipleOf: 1e300 }),
             ctx,
             validateShape
           });
@@ -782,13 +739,14 @@ describe('validators/number', () => {
 
   describe('Robustness and fallback checks on constraint dispatchers', () => {
     it('should bypass minimum, maximum, and multipleOf validations inside validateNumberConstraints when the value is a boolean', () => {
+      const schema = schemaMother.empty({
+        minimum: 5,
+        maximum: 10,
+        multipleOf: 2
+      });
       validateNumberConstraints({
         value: true,
-        schema: new SchemaBuilder()
-          .minimum(5)
-          .maximum(10)
-          .multipleOf(2)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -797,13 +755,14 @@ describe('validators/number', () => {
     });
 
     it('should bypass validations inside validateNumberConstraints when the value is a non-int64 string', () => {
+      const schema = schemaMother.empty({
+        minimum: 5,
+        maximum: 10,
+        multipleOf: 2
+      });
       validateNumberConstraints({
         value: 'not-int64',
-        schema: new SchemaBuilder()
-          .minimum(5)
-          .maximum(10)
-          .multipleOf(2)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -814,27 +773,30 @@ describe('validators/number', () => {
 
   describe('Global BigInt constraint validation (without int64 / with int32)', () => {
     it('should validate minimum/maximum/multipleOf for native bigint on an integer type schema without any format', () => {
+      const schema = schemaMother.integer({ minimum: 10 });
       validateShape({
         value: 9n,
-        schema: new SchemaBuilder().type('integer').minimum(10).build(),
+        schema: schema,
         ctx,
         validateShape
       });
       assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
 
       ctx = contextMother.empty();
+      const schema1 = schemaMother.integer({ maximum: 10 });
       validateShape({
         value: 11n,
-        schema: new SchemaBuilder().type('integer').maximum(10).build(),
+        schema: schema1,
         ctx,
         validateShape
       });
       assertHasValidationError(ctx, 'Value 11 is greater than maximum 10');
 
       ctx = contextMother.empty();
+      const schema2 = schemaMother.integer({ multipleOf: 3 });
       validateShape({
         value: 7n,
-        schema: new SchemaBuilder().type('integer').multipleOf(3).build(),
+        schema: schema2,
         ctx,
         validateShape
       });
@@ -842,9 +804,10 @@ describe('validators/number', () => {
     });
 
     it('should accept valid 32-bit bigint on int32 format and reject out-of-bounds bigint', () => {
+      const schema = schemaMother.integer({ format: 'int32' });
       validateShape({
         value: 10n,
-        schema: new SchemaBuilder().type('integer').format('int32').build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -852,9 +815,10 @@ describe('validators/number', () => {
 
       ctx = contextMother.empty();
       const valueExceedingInt32Max = 2147483648n;
+      const schema1 = schemaMother.integer({ format: 'int32' });
       validateShape({
         value: valueExceedingInt32Max,
-        schema: new SchemaBuilder().type('integer').format('int32').build(),
+        schema: schema1,
         ctx,
         validateShape
       });
@@ -865,9 +829,10 @@ describe('validators/number', () => {
 
       ctx = contextMother.empty();
       const valueBelowInt32Min = -2147483649n;
+      const schema2 = schemaMother.integer({ format: 'int32' });
       validateShape({
         value: valueBelowInt32Min,
-        schema: new SchemaBuilder().type('integer').format('int32').build(),
+        schema: schema2,
         ctx,
         validateShape
       });
@@ -878,18 +843,9 @@ describe('validators/number', () => {
     });
 
     it('should gracefully ignore validation for NaN, negative, and infinite multipleOf values (T011)', () => {
-      const schemaNaN = new SchemaBuilder()
-        .type('number')
-        .multipleOf(NaN)
-        .build();
-      const schemaNeg = new SchemaBuilder()
-        .type('number')
-        .multipleOf(-5)
-        .build();
-      const schemaInf = new SchemaBuilder()
-        .type('number')
-        .multipleOf(Infinity)
-        .build();
+      const schemaNaN = schemaMother.number({ multipleOf: NaN });
+      const schemaNeg = schemaMother.number({ multipleOf: -5 });
+      const schemaInf = schemaMother.number({ multipleOf: Infinity });
 
       validateMultipleOfConstraint({
         value: 10,

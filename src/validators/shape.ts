@@ -86,6 +86,8 @@ function validateNotConstraint(args: ValidationArgs): void {
 
   ctx.pushNegation(value, resolvedNot);
   try {
+    // Clear/reset the visited set so the negated schema can independently
+    // traverse references without false-positive cycle detection from the parent
     const childCtx = ctx.createChildContext({ resetVisited: true });
     validateShape({
       ...args,

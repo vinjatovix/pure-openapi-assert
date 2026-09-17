@@ -1,3 +1,4 @@
 pnpm run check-circular
 pnpm run lint
 pnpm run test:coverage
+pnpm exec commitlint --from=origin/main

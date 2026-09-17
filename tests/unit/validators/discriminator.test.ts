@@ -1,3 +1,4 @@
+import { schemaMother } from '../../helpers/schemaMother.js';
 import { describe, it, expect } from 'vitest';
 import type { OpenAPIV3 } from 'openapi-types';
 
@@ -9,47 +10,39 @@ import {
   assertValid
 } from '../../helpers/assertions.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 
 describe('validators/discriminator', () => {
   describe('resolveDiscriminatorSchema', () => {
-    const dogSchema = new SchemaBuilder()
-      .type('object')
-      .title('Dog')
-      .properties({
-        petType: new SchemaBuilder().const('dog')
-      })
-      .build();
+    const dogSchema = schemaMother.object({
+      title: 'Dog',
+      properties: {
+        petType: schemaMother.empty({ const: 'dog' } as unknown as OpenAPIV3.SchemaObject)
+      }
+    });
 
-    const catSchema = new SchemaBuilder()
-      .type('object')
-      .title('Cat')
-      .properties({
-        petType: new SchemaBuilder().enum(['cat', 'kitty'])
-      })
-      .build();
+    const catSchema = schemaMother.object({
+      title: 'Cat',
+      properties: {
+        petType: schemaMother.empty({ enum: ['cat', 'kitty'] })
+      }
+    });
 
     const schemas: OpenAPIV3.SchemaObject[] = [
       dogSchema,
       catSchema,
       'not-a-schema-object' as unknown as OpenAPIV3.SchemaObject,
-      new SchemaBuilder().type('object').title('NoProps').build(),
-      new SchemaBuilder()
-        .type('object')
-        .title('BadProp')
-        .properties({
+      schemaMother.object({ title: 'NoProps' }),
+      schemaMother.object({
+        title: 'BadProp',
+        properties: {
           petType: 'not-a-property-schema' as unknown as OpenAPIV3.SchemaObject
-        })
-        .build()
+        }
+      })
     ];
 
-    const parentSchema = new SchemaBuilder()
-      .oneOf(...schemas)
-      .discriminator('petType', {
-        dog: '#/components/schemas/Dog',
-        cat: '#/components/schemas/Cat'
-      })
-      .build();
+    const parentSchema = schemaMother.oneOf([...schemas], {
+      discriminator: { propertyName: 'petType' }
+    });
 
     it.each([
       {
@@ -125,15 +118,13 @@ describe('validators/discriminator', () => {
 
         let testSchema = parentSchema;
         if (customMapping) {
-          testSchema = new SchemaBuilder()
-            .oneOf(...schemas)
-            .discriminator('petType', customMapping)
-            .build();
+          testSchema = schemaMother.oneOf([...schemas], {
+            discriminator: { propertyName: 'petType' }
+          });
         } else if (omitMapping) {
-          testSchema = new SchemaBuilder()
-            .oneOf(...schemas)
-            .discriminator('petType')
-            .build();
+          testSchema = schemaMother.oneOf([...schemas], {
+            discriminator: { propertyName: 'petType' }
+          });
         }
 
         const result = resolveDiscriminatorSchema({
@@ -160,24 +151,21 @@ describe('validators/discriminator', () => {
 
   describe('Inherited properties and structural matching', () => {
     it('should resolve discriminator property inherited from allOf', () => {
-      const baseSchema = new SchemaBuilder()
-        .type('object')
-        .properties({
-          kind: new SchemaBuilder().const('derived-dog')
-        })
-        .build();
-      const childSchema = new SchemaBuilder()
-        .title('DerivedDog')
-        .allOf(baseSchema)
-        .properties({
-          bark: new SchemaBuilder().type('boolean')
-        })
-        .build();
+      const baseSchema = schemaMother.object({
+        properties: {
+          kind: schemaMother.empty({ const: 'derived-dog' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
+      const childSchema = schemaMother.allOf([baseSchema], {
+        title: 'DerivedDog',
+        properties: {
+          bark: schemaMother.boolean()
+        }
+      });
       const schemas: OpenAPIV3.SchemaObject[] = [childSchema];
-      const parentSchema = new SchemaBuilder()
-        .oneOf(...schemas)
-        .discriminator('kind')
-        .build();
+      const parentSchema = schemaMother.oneOf([...schemas], {
+        discriminator: { propertyName: 'kind' }
+      });
 
       const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
@@ -195,25 +183,22 @@ describe('validators/discriminator', () => {
     });
 
     it('should resolve discriminator property when derived schema overrides with less specific type (preserving const from base)', () => {
-      const baseSchema = new SchemaBuilder()
-        .type('object')
-        .properties({
-          kind: new SchemaBuilder().const('derived-dog')
-        })
-        .build();
-      const childSchema = new SchemaBuilder()
-        .title('DerivedDog')
-        .allOf(baseSchema)
-        .properties({
-          kind: new SchemaBuilder().type('string'),
-          bark: new SchemaBuilder().type('boolean')
-        })
-        .build();
+      const baseSchema = schemaMother.object({
+        properties: {
+          kind: schemaMother.empty({ const: 'derived-dog' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
+      const childSchema = schemaMother.allOf([baseSchema], {
+        title: 'DerivedDog',
+        properties: {
+          kind: schemaMother.string(),
+          bark: schemaMother.boolean()
+        }
+      });
       const schemas: OpenAPIV3.SchemaObject[] = [childSchema];
-      const parentSchema = new SchemaBuilder()
-        .oneOf(...schemas)
-        .discriminator('kind')
-        .build();
+      const parentSchema = schemaMother.oneOf([...schemas], {
+        discriminator: { propertyName: 'kind' }
+      });
 
       const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
@@ -231,23 +216,21 @@ describe('validators/discriminator', () => {
     });
 
     it('should match schema structurally even if physical reference equality fails (cloned target)', () => {
-      const originalSchema = new SchemaBuilder()
-        .type('object')
-        .title('ClonedModel')
-        .properties({
-          modelType: new SchemaBuilder().const('clone')
-        })
-        .build();
+      const originalSchema = schemaMother.object({
+        title: 'ClonedModel',
+        properties: {
+          modelType: schemaMother.empty({ const: 'clone' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
       const clonedSchema = structuredClone(originalSchema);
 
       const ctx = contextMother.withSchemas({
         ClonedModel: originalSchema
       });
 
-      const parentSchema = new SchemaBuilder()
-        .oneOf(clonedSchema)
-        .discriminator('modelType')
-        .build();
+      const parentSchema = schemaMother.oneOf([clonedSchema], {
+        discriminator: { propertyName: 'modelType' }
+      });
 
       const result = resolveDiscriminatorSchema({
         validationArgs: {
@@ -264,19 +247,17 @@ describe('validators/discriminator', () => {
     });
 
     it('should handle cyclic allOf schemas during properties resolution without crashing', () => {
-      const cyclicSchema = new SchemaBuilder()
-        .type('object')
-        .title('CyclicSchema')
-        .properties({
-          petType: new SchemaBuilder().const('cyclic')
-        })
-        .build();
+      const cyclicSchema = schemaMother.object({
+        title: 'CyclicSchema',
+        properties: {
+          petType: schemaMother.empty({ const: 'cyclic' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
       cyclicSchema.allOf = [cyclicSchema];
 
-      const parentSchema = new SchemaBuilder()
-        .oneOf(cyclicSchema)
-        .discriminator('petType')
-        .build();
+      const parentSchema = schemaMother.oneOf([cyclicSchema], {
+        discriminator: { propertyName: 'petType' }
+      });
 
       const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
@@ -299,20 +280,16 @@ describe('validators/discriminator', () => {
 
   describe('Fallback ambiguity and prototype safety', () => {
     it('should not look up discriminator values on Object.prototype (e.g. toString)', () => {
-      const dogSchema = new SchemaBuilder()
-        .type('object')
-        .title('Dog')
-        .properties({
-          petType: new SchemaBuilder().const('dog')
-        })
-        .build();
+      const dogSchema = schemaMother.object({
+        title: 'Dog',
+        properties: {
+          petType: schemaMother.empty({ const: 'dog' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
 
-      const parentSchema = new SchemaBuilder()
-        .oneOf(dogSchema)
-        .discriminator('petType', {
-          dog: '#/components/schemas/Dog'
-        })
-        .build();
+      const parentSchema = schemaMother.oneOf([dogSchema], {
+        discriminator: { propertyName: 'petType' }
+      });
 
       const ctx = contextMother.withSchemas({
         Dog: dogSchema
@@ -342,20 +319,16 @@ describe('validators/discriminator', () => {
       (Object.prototype as Record<string, string>).petType = 'dog';
 
       try {
-        const dogSchema = new SchemaBuilder()
-          .type('object')
-          .title('Dog')
-          .properties({
-            petType: new SchemaBuilder().const('dog')
-          })
-          .build();
+        const dogSchema = schemaMother.object({
+          title: 'Dog',
+          properties: {
+            petType: schemaMother.empty({ const: 'dog' } as unknown as OpenAPIV3.SchemaObject)
+          }
+        });
 
-        const parentSchema = new SchemaBuilder()
-          .oneOf(dogSchema)
-          .discriminator('petType', {
-            dog: '#/components/schemas/Dog'
-          })
-          .build();
+        const parentSchema = schemaMother.oneOf([dogSchema], {
+          discriminator: { propertyName: 'petType' }
+        });
 
         const ctx = contextMother.withSchemas({
           Dog: dogSchema
@@ -389,22 +362,19 @@ describe('validators/discriminator', () => {
     });
 
     it('should ignore property fallback match if it is ambiguous (multiple schemas match)', () => {
-      const targetA = new SchemaBuilder()
-        .type('object')
-        .properties({
-          kind: new SchemaBuilder().const('duplicate')
-        })
-        .build();
-      const targetB = new SchemaBuilder()
-        .type('object')
-        .properties({
-          kind: new SchemaBuilder().const('duplicate')
-        })
-        .build();
-      const parentSchema = new SchemaBuilder()
-        .oneOf(targetA, targetB)
-        .discriminator('kind')
-        .build();
+      const targetA = schemaMother.object({
+        properties: {
+          kind: schemaMother.empty({ const: 'duplicate' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
+      const targetB = schemaMother.object({
+        properties: {
+          kind: schemaMother.empty({ const: 'duplicate' } as unknown as OpenAPIV3.SchemaObject)
+        }
+      });
+      const parentSchema = schemaMother.oneOf([targetA], {
+        discriminator: { propertyName: 'kind' }
+      });
 
       const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({
@@ -426,19 +396,12 @@ describe('validators/discriminator', () => {
     });
 
     it('should ignore matchByTitle fallback match if the title is ambiguous', () => {
-      const targetA = new SchemaBuilder()
-        .type('object')
-        .title('SameTitle')
-        .build();
-      const targetB = new SchemaBuilder()
-        .type('object')
-        .title('SameTitle')
-        .build();
+      const targetA = schemaMother.object({ title: 'SameTitle' });
+      const targetB = schemaMother.object({ title: 'SameTitle' });
 
-      const parentSchema = new SchemaBuilder()
-        .oneOf(targetA, targetB)
-        .discriminator('kind')
-        .build();
+      const parentSchema = schemaMother.oneOf([targetA], {
+        discriminator: { propertyName: 'kind' }
+      });
 
       const ctx = contextMother.empty();
       const result = resolveDiscriminatorSchema({

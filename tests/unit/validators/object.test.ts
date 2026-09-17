@@ -7,7 +7,6 @@ import {
   assertHasValidationError
 } from '../../helpers/assertions.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('validators/object', () => {
@@ -19,9 +18,10 @@ describe('validators/object', () => {
 
   describe('Structural, Circular, and Limits', () => {
     it('should handle undefined properties in validateObject with Object.keys', () => {
+      const schema = schemaMother.object();
       validateObject({
         value: { id: 123 },
-        schema: schemaMother.object(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -33,7 +33,7 @@ describe('validators/object', () => {
       const obj: Record<string, unknown> = {};
       obj['self'] = obj;
 
-      const circularSchema = new SchemaBuilder().type('object').build();
+      const circularSchema = schemaMother.object();
       circularSchema.properties = { self: circularSchema };
 
       validateObject({
@@ -48,10 +48,11 @@ describe('validators/object', () => {
 
     it('should fail when object has fewer properties than minProperties', () => {
       const ctxMinFail = contextMother.empty();
+      const schema = schemaMother.object({ minProperties: 2 });
 
       validateObject({
         value: { a: 1 },
-        schema: new SchemaBuilder().type('object').minProperties(2).build(),
+        schema: schema,
         ctx: ctxMinFail,
         validateShape
       });
@@ -64,10 +65,11 @@ describe('validators/object', () => {
 
     it('should fail when object has more properties than maxProperties', () => {
       const ctxMaxFail = contextMother.empty();
+      const schema = schemaMother.object({ maxProperties: 2 });
 
       validateObject({
         value: { a: 1, b: 2, c: 3 },
-        schema: new SchemaBuilder().type('object').maxProperties(2).build(),
+        schema: schema,
         ctx: ctxMaxFail,
         validateShape
       });
@@ -79,9 +81,10 @@ describe('validators/object', () => {
     });
 
     it('should return early in validateObject if value is an array', () => {
+      const schema = schemaMother.object();
       validateObject({
         value: [1, 2, 3],
-        schema: schemaMother.object(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -89,9 +92,10 @@ describe('validators/object', () => {
     });
 
     it('should fail validation when validating null value in validateObject', () => {
+      const schema = schemaMother.object();
       validateObject({
         value: null,
-        schema: schemaMother.object(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -101,9 +105,10 @@ describe('validators/object', () => {
 
   describe('Required Fields and Additional Properties edge cases (via validateObject)', () => {
     it('should not fail validation when required is undefined in schema', () => {
+      const schema = schemaMother.empty();
       validateObject({
         value: { id: 123 },
-        schema: schemaMother.empty(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -111,12 +116,13 @@ describe('validators/object', () => {
     });
 
     it('should support additionalProperties: true', () => {
+      const schema = schemaMother.object({
+        properties: { foo: schemaMother.string() },
+        additionalProperties: true
+      });
       validateObject({
         value: { foo: 'bar', extra: 123 },
-        schema: schemaMother.object({
-          properties: { foo: schemaMother.string() },
-          additionalProperties: true
-        }),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -124,12 +130,13 @@ describe('validators/object', () => {
     });
 
     it('should disallow additional properties when additionalProperties is false', () => {
+      const schema = schemaMother.object({
+        properties: { foo: schemaMother.string() },
+        additionalProperties: false
+      });
       validateObject({
         value: { foo: 'bar', extra: 123 },
-        schema: schemaMother.object({
-          properties: { foo: schemaMother.string() },
-          additionalProperties: false
-        }),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -140,9 +147,10 @@ describe('validators/object', () => {
     });
 
     it('should default properties count to 0 when keys array is calculated internally', () => {
+      const schema = schemaMother.empty({ minProperties: 1 });
       validateObject({
         value: {},
-        schema: new SchemaBuilder().minProperties(1).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -151,9 +159,10 @@ describe('validators/object', () => {
     });
 
     it('should default properties to an empty object when schema properties are omitted', () => {
+      const schema = schemaMother.empty({ additionalProperties: false });
       validateObject({
         value: { extraProp: 'val' },
-        schema: new SchemaBuilder().additionalProperties(false).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -165,12 +174,13 @@ describe('validators/object', () => {
     });
 
     it('should bypass shape validation when additionalProperties is a reference object', () => {
+      const schema = schemaMother.empty({
+        properties: {},
+        additionalProperties: { $ref: '#/components/schemas/SomeSchema' }
+      });
       validateObject({
         value: { extraProp: 'val' },
-        schema: new SchemaBuilder()
-          .properties({})
-          .additionalProperties({ $ref: '#/components/schemas/SomeSchema' })
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });

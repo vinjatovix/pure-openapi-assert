@@ -1,3 +1,4 @@
+import type { OpenAPIV3 } from 'openapi-types';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { validateShape } from '../../../src/validators/shape.js';
 import {
@@ -12,7 +13,6 @@ import {
   assertHasValidationError
 } from '../../helpers/assertions.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { SchemaBuilder } from '../../helpers/SchemaBuilder.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('validators/base', () => {
@@ -49,9 +49,10 @@ describe('validators/base', () => {
 
   describe('validateShape base validation requirements', () => {
     it('should throw error when non-nullable field receives null', () => {
+      const schema = schemaMother.string({ nullable: false });
       validateShape({
         value: null,
-        schema: new SchemaBuilder().type('string').nullable(false).build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -60,9 +61,10 @@ describe('validators/base', () => {
     });
 
     it('should throw error when validateShape receives undefined directly', () => {
+      const schema = schemaMother.string();
       validateShape({
         value: undefined,
-        schema: schemaMother.string(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -71,12 +73,10 @@ describe('validators/base', () => {
     });
 
     it('should not crash or resolve prototype properties as format validators', () => {
+      const schema = schemaMother.string({ format: 'hasOwnProperty' });
       validateShape({
         value: 'some-value',
-        schema: new SchemaBuilder()
-          .type('string')
-          .format('hasOwnProperty')
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
@@ -85,9 +85,10 @@ describe('validators/base', () => {
     });
 
     it('should ignore custom formats that match prototype properties if not defined on customFormats', () => {
+      const schema = schemaMother.string({ format: 'toString' });
       validateShape({
         value: 'some-value',
-        schema: new SchemaBuilder().type('string').format('toString').build(),
+        schema: schema,
         ctx,
         validateShape,
         customFormats: {}
@@ -99,10 +100,7 @@ describe('validators/base', () => {
 
   describe('validateEnum & validateConst', () => {
     it('validateEnum should cache and validate correctly', () => {
-      const schema = new SchemaBuilder()
-        .type('string')
-        .enum(['admin', 'user'])
-        .build();
+      const schema = schemaMother.string({ enum: ['admin', 'user'] });
 
       validateEnum({
         value: 'guest',
@@ -115,7 +113,7 @@ describe('validators/base', () => {
     });
 
     it('validateEnum should support bigint and format error message without throwing', () => {
-      const schema = new SchemaBuilder().type('integer').enum([1n, 2n]).build();
+      const schema = schemaMother.integer({ enum: [1n, 2n] });
 
       validateEnum({
         value: 3n,
@@ -128,7 +126,7 @@ describe('validators/base', () => {
     });
 
     it('validateConst should use strict identity checking', () => {
-      const schema = new SchemaBuilder().type('number').const(42).build();
+      const schema = schemaMother.number({ const: 42 } as unknown as OpenAPIV3.SchemaObject);
       validateConst({
         value: 42,
         schema,
@@ -140,7 +138,7 @@ describe('validators/base', () => {
     });
 
     it('validateConst should pass for deep strict equal objects that are not strictly identical (T008)', () => {
-      const schema = new SchemaBuilder().type('object').const({ a: 1 }).build();
+      const schema = schemaMother.object({ const: { a: 1 } } as unknown as OpenAPIV3.SchemaObject);
 
       validateConst({
         value: { a: 1 },
@@ -153,7 +151,7 @@ describe('validators/base', () => {
     });
 
     it('validateConst should support bigint and format error message without throwing', () => {
-      const schema = new SchemaBuilder().type('integer').const(42n).build();
+      const schema = schemaMother.integer({ const: 42n } as unknown as OpenAPIV3.SchemaObject);
 
       validateConst({
         value: 43n,
@@ -168,13 +166,14 @@ describe('validators/base', () => {
 
   describe('Fallback handling and edge-case boundaries', () => {
     it('should bypass numeric constraint validations when the value is neither a number nor an int64 string', () => {
+      const schema = schemaMother.empty({
+        minimum: 5,
+        maximum: 10,
+        multipleOf: 2
+      });
       validateBaseType({
         value: true,
-        schema: new SchemaBuilder()
-          .minimum(5)
-          .maximum(10)
-          .multipleOf(2)
-          .build(),
+        schema: schema,
         ctx,
         validateShape
       });
