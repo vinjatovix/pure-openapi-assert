@@ -7,10 +7,8 @@ import {
   REGEX_ESCAPE_CHARS_REGEX,
   TRAILING_SLASHES_REGEX
 } from '../core/constants.js';
-import { FIFOCache } from '../core/FIFOCache.js';
 import { isJson, normalizeMediaType } from '../core/utils.js';
-
-const regexCache = new FIFOCache<string, RegExp>();
+import { stateManager } from '../core/StateManager.js';
 
 const escapeRegex = (str: string): string =>
   str.replace(REGEX_ESCAPE_CHARS_REGEX, '\\$&');
@@ -20,14 +18,14 @@ const normalizePath = (p: string): string =>
 
 function convertOpenApiPathToRegExp(openApiPath: string): RegExp {
   const cacheKey = `path:${openApiPath}`;
-  const cached = regexCache.get(cacheKey);
+  const cached = stateManager.pathRegexCache.get(cacheKey);
   if (cached) {
     return cached;
   }
   const escapedPath = escapeRegex(openApiPath);
   const regexPattern = escapedPath.replace(OPENAPI_PATH_PARAM_REGEX, '[^/]+');
   const rx = new RegExp('^' + regexPattern + '$');
-  regexCache.set(cacheKey, rx);
+  stateManager.pathRegexCache.set(cacheKey, rx);
   return rx;
 }
 
@@ -91,15 +89,13 @@ function getOperation(options: GetOperationOptions): OpenAPIV3.OperationObject {
   throw new Error(`Operation not found: ${method} ${reqPath}`);
 }
 
-export const wildcardRegexCache = new FIFOCache<string, RegExp>();
-
 function matchWildcard(req: string, declared: string): boolean {
-  let rx = wildcardRegexCache.get(declared);
+  let rx = stateManager.wildcardRegexCache.get(declared);
   if (!rx) {
     const regexPattern =
       '^' + escapeRegex(declared).replace(ESCAPED_WILDCARD_REGEX, '.*') + '$';
     rx = new RegExp(regexPattern);
-    wildcardRegexCache.set(declared, rx);
+    stateManager.wildcardRegexCache.set(declared, rx);
   }
   return rx.test(req);
 }

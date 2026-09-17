@@ -124,21 +124,43 @@ interface ResolveContentHeaderArgs {
   customFormats?: Record<string, (val: string) => boolean> | undefined;
 }
 
+function tryParseHeaderJSON(
+  actualValue: unknown,
+  headerName: string,
+  ctx: ValidationContext
+): { success: true; value: unknown } | { success: false } {
+  const rawString = Array.isArray(actualValue)
+    ? (actualValue as unknown[])[0]
+    : actualValue;
+  if (typeof rawString !== 'string') {
+    return { success: true, value: actualValue };
+  }
+  try {
+    return { success: true, value: parseJSONLossless(rawString) };
+  } catch (err) {
+    ctx.pushPath(`headers.${headerName}`);
+    const message = err instanceof Error ? err.message : String(err);
+    ctx.addError(`Failed to parse JSON from header value: ${message}`);
+    ctx.popPath();
+    return { success: false };
+  }
+}
+
 function resolveContentHeader(
   args: ResolveContentHeaderArgs
 ): { targetSchema?: OpenAPIV3.SchemaObject; valToValidate?: unknown } | null {
   const { headerName, contentSpec, actualValue, ctx, customFormats } = args;
-  const mediaTypes = Object.keys(contentSpec);
-  const firstMediaType = mediaTypes[0];
-  const mediaTypeObject = firstMediaType
-    ? contentSpec[firstMediaType]
-    : undefined;
-
-  if (!mediaTypeObject?.schema) {
+  const firstMediaType = Object.keys(contentSpec)[0];
+  if (!firstMediaType) {
     return {};
   }
+  const mediaTypeObject = contentSpec[firstMediaType];
+  if (!mediaTypeObject || !mediaTypeObject.schema) {
+    return {};
+  }
+  const { schema } = mediaTypeObject;
 
-  if (isReferenceObject(mediaTypeObject.schema)) {
+  if (isReferenceObject(schema)) {
     ctx.addError(
       `Schema for header '${headerName}' contains an unresolved $ref. Ensure your OpenAPI spec is fully dereferenced.`
     );
@@ -146,33 +168,23 @@ function resolveContentHeader(
   }
 
   let valToValidate: unknown = actualValue;
-  if (firstMediaType && isJson(firstMediaType)) {
-    const rawString = Array.isArray(actualValue)
-      ? (actualValue as unknown[])[0]
-      : actualValue;
-    if (typeof rawString === 'string') {
-      try {
-        valToValidate = parseJSONLossless(rawString);
-      } catch (err) {
-        ctx.pushPath(`headers.${headerName}`);
-        ctx.addError(
-          `Failed to parse JSON from header value: ${(err as Error).message}`
-        );
-        ctx.popPath();
-        return null;
-      }
+  if (isJson(firstMediaType)) {
+    const parseResult = tryParseHeaderJSON(actualValue, headerName, ctx);
+    if (!parseResult.success) {
+      return null;
     }
+    valToValidate = parseResult.value;
   }
 
   valToValidate = coerceHeaderValue({
     value: valToValidate,
-    schema: mediaTypeObject.schema,
+    schema,
     customFormats,
     ctx
   });
 
   return {
-    targetSchema: mediaTypeObject.schema,
+    targetSchema: schema,
     valToValidate
   };
 }

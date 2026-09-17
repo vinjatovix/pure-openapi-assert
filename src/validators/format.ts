@@ -9,9 +9,7 @@ import {
   MAX_HOSTNAME_LENGTH,
   UUID_REGEX
 } from '../core/constants.js';
-import { FIFOCache } from '../core/FIFOCache.js';
-
-const regexCache = new FIFOCache<string, RegExp>();
+import { stateManager } from '../core/StateManager.js';
 
 /**
  * Compiles and caches a regular expression from an OpenAPI schema pattern.
@@ -23,10 +21,10 @@ const regexCache = new FIFOCache<string, RegExp>();
  * cached regexes is enforced to prevent Memory Leaks.
  */
 export function getCachedRegex(pattern: string): RegExp {
-  let rx = regexCache.get(pattern);
+  let rx = stateManager.formatRegexCache.get(pattern);
   if (!rx) {
     rx = new RegExp(pattern);
-    regexCache.set(pattern, rx);
+    stateManager.formatRegexCache.set(pattern, rx);
   }
   return rx;
 }

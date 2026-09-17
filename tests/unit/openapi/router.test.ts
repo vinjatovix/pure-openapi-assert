@@ -2,11 +2,9 @@ import { schemaMother } from '../../helpers/schemaMother.js';
 import type { OpenAPIV3 } from 'openapi-types';
 import { describe, expect, it } from 'vitest';
 import { normalizeMediaType } from '../../../src/core/utils.js';
-import {
-  getResponseSchema,
-  wildcardRegexCache
-} from '../../../src/openapi/router.js';
+import { getResponseSchema } from '../../../src/openapi/router.js';
 import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
+import { stateManager } from '../../../src/core/StateManager.js';
 
 interface GetTestSchemaOptions {
   spec: OpenAPIV3.Document;
@@ -207,13 +205,13 @@ describe('openapi/router', () => {
     });
 
     it('should evict oldest entry in FIFO order from wildcardRegexCache when size exceeds limit', () => {
-      wildcardRegexCache.clear();
+      stateManager.wildcardRegexCache.clear();
       const firstDeclared = 'image/0/*';
       getTestSchema({
         spec: buildSpecWithMediaTypes([firstDeclared]),
         contentType: 'image/0/png'
       });
-      const hasBeforeLimit = wildcardRegexCache.has(firstDeclared);
+      const hasBeforeLimit = stateManager.wildcardRegexCache.has(firstDeclared);
       const MAX_LIMIT = 1000;
 
       for (let i = 1; i <= MAX_LIMIT; i++) {
@@ -223,8 +221,8 @@ describe('openapi/router', () => {
           contentType: `image/${i}/png`
         });
       }
-      const hasAfterLimit = wildcardRegexCache.has(firstDeclared);
-      const finalSize = wildcardRegexCache.size;
+      const hasAfterLimit = stateManager.wildcardRegexCache.has(firstDeclared);
+      const finalSize = stateManager.wildcardRegexCache.size;
 
       expect(hasBeforeLimit).toBe(true);
       expect(hasAfterLimit).toBe(false);

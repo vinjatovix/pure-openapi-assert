@@ -2,8 +2,7 @@ import path from 'node:path';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import type { OpenAPIV3 } from 'openapi-types';
 import { isPlainObject } from '../core/utils.js';
-
-const specCache = new Map<string, OpenAPIV3.Document>();
+import { stateManager } from '../core/StateManager.js';
 
 function isValidOpenAPIV3Document(spec: unknown): spec is OpenAPIV3.Document {
   if (!isPlainObject(spec)) {
@@ -19,25 +18,51 @@ function isValidOpenAPIV3Document(spec: unknown): spec is OpenAPIV3.Document {
 
 export async function loadSpec(specPath: string): Promise<OpenAPIV3.Document> {
   const absolutePath = path.resolve(process.cwd(), specPath);
-  const cachedSpec = specCache.get(absolutePath);
-  if (cachedSpec) {
-    return cachedSpec;
+
+  // Get current mtimeMs from stateManager (triggers same-tick microtask check)
+  const currentMtimeMs = await stateManager.getMtimeMs(absolutePath);
+
+  const cachedEntry = stateManager.getFileSpecEntry(absolutePath);
+
+  if (cachedEntry) {
+    if (cachedEntry.mtimeMs === currentMtimeMs) {
+      return cachedEntry.document;
+    }
+    stateManager.invalidate(absolutePath);
   }
 
-  let spec: unknown;
-  try {
-    spec = await SwaggerParser.dereference(absolutePath);
-  } catch (err) {
-    throw new Error(
-      `Parsed OpenAPI spec is invalid at ${absolutePath}: ${(err as Error).message}`,
-      { cause: err }
-    );
+  const pending = stateManager.getPendingLoad(absolutePath);
+  if (pending) {
+    return pending;
   }
 
-  if (!isValidOpenAPIV3Document(spec)) {
-    throw new Error(`Parsed OpenAPI spec is invalid at ${absolutePath}`);
-  }
+  const loadPromise = (async () => {
+    try {
+      const spec = await SwaggerParser.dereference(absolutePath);
 
-  specCache.set(absolutePath, spec);
-  return spec;
+      if (!isValidOpenAPIV3Document(spec)) {
+        throw new Error(`Parsed OpenAPI spec is invalid at ${absolutePath}`);
+      }
+
+      stateManager.setFileSpec(absolutePath, spec, currentMtimeMs);
+      return spec;
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.startsWith('Parsed OpenAPI spec is invalid')
+      ) {
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Parsed OpenAPI spec is invalid at ${absolutePath}: ${message}`,
+        { cause: err }
+      );
+    } finally {
+      stateManager.clearPendingLoad(absolutePath);
+    }
+  })();
+
+  stateManager.setPendingLoad(absolutePath, loadPromise);
+  return loadPromise;
 }
