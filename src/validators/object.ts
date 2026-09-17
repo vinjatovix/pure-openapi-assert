@@ -1,4 +1,11 @@
 import type { OpenAPIV3 } from 'openapi-types';
+import {
+  formatExpectedObjectError,
+  formatObjectMinPropertiesError,
+  formatObjectMaxPropertiesError,
+  formatRequiredFieldError,
+  formatAdditionalPropertiesError
+} from '../core/errors.js';
 import { isPlainObject, isSchemaObject } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 
@@ -6,14 +13,10 @@ function validateObjectBounds(args: ValidationArgs): void {
   const { schema, ctx, keys } = args;
   const keysCount = keys ? keys.length : 0;
   if (schema.minProperties !== undefined && keysCount < schema.minProperties) {
-    ctx.addError(
-      `Object has ${keysCount} properties, minimum is ${schema.minProperties}`
-    );
+    ctx.addError(formatObjectMinPropertiesError(keysCount, schema.minProperties));
   }
   if (schema.maxProperties !== undefined && keysCount > schema.maxProperties) {
-    ctx.addError(
-      `Object has ${keysCount} properties, maximum is ${schema.maxProperties}`
-    );
+    ctx.addError(formatObjectMaxPropertiesError(keysCount, schema.maxProperties));
   }
 }
 
@@ -27,7 +30,7 @@ function validateRequiredFields(
   for (const key of required) {
     if (obj[key] === undefined) {
       ctx.pushPath(key);
-      ctx.addError('Missing required field');
+      ctx.addError(formatRequiredFieldError());
       ctx.popPath();
     }
   }
@@ -65,7 +68,7 @@ function validateAdditionalProperties(
 
     if (additionalSchema === false) {
       ctx.pushPath(key);
-      ctx.addError(`Key '${key}' is not allowed by OpenAPI schema`);
+      ctx.addError(formatAdditionalPropertiesError(key));
       ctx.popPath();
       continue;
     }
@@ -116,7 +119,7 @@ export function validateObject(args: ValidationArgs): void {
   const { value, schema, ctx } = args;
   if (!isPlainObject(value)) {
     ctx.addError(
-      `Expected object, received ${value === null ? 'null' : typeof value}`
+      formatExpectedObjectError(value === null ? 'null' : typeof value)
     );
     return;
   }

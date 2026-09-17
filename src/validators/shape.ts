@@ -1,3 +1,10 @@
+import {
+  formatNullableError,
+  formatWriteOnlyError,
+  formatRequiredPropertyError,
+  formatCyclicNotSchemaError,
+  formatProhibitedSchemaError
+} from '../core/errors.js';
 import { isPlainObject } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 import { resolveSchema } from './pointers.js';
@@ -39,7 +46,7 @@ function shouldStopOnNullValue(
     return false;
   }
   if (!schema.nullable) {
-    ctx.addError('Field is not nullable but received null');
+    ctx.addError(formatNullableError());
   }
   return true;
 }
@@ -52,7 +59,7 @@ function preValidate(args: ValidationArgs): boolean {
   }
 
   if (schema.writeOnly && value !== undefined) {
-    ctx.addError('Field is writeOnly and must not be present in the response');
+    ctx.addError(formatWriteOnlyError());
     return false;
   }
 
@@ -61,7 +68,7 @@ function preValidate(args: ValidationArgs): boolean {
   }
 
   if (value === undefined) {
-    ctx.addError('Field is required but received undefined');
+    ctx.addError(formatRequiredPropertyError());
     return false;
   }
 
@@ -80,7 +87,7 @@ function validateNotConstraint(args: ValidationArgs): void {
   }
 
   if (ctx.hasActiveNegation(value, resolvedNot)) {
-    ctx.addError('Cyclic not schema detected', { code: 'CYCLIC_NOT_SCHEMA' });
+    ctx.addError(formatCyclicNotSchemaError(), { code: 'CYCLIC_NOT_SCHEMA' });
     return;
   }
 
@@ -105,7 +112,7 @@ function validateNotConstraint(args: ValidationArgs): void {
     }
 
     if (!childCtx.hasErrors()) {
-      ctx.addError('Value matches prohibited schema');
+      ctx.addError(formatProhibitedSchemaError());
     }
   } finally {
     ctx.popNegation(value, resolvedNot);
