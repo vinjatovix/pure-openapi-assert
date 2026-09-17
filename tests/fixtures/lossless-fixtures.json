@@ -1,0 +1,24 @@
+{
+  "safe": {
+    "integer": 42,
+    "float": 1.23,
+    "negative_integer": -100,
+    "negative_float": -0.5,
+    "zero": 0,
+    "string": "Hello, world!",
+    "boolean": true,
+    "null_val": null,
+    "nested_array": [1, 2, 3],
+    "nested_obj": {
+      "a": "b",
+      "number": 99
+    }
+  },
+  "unsafe": {
+    "large_integer": 9007199254740993,
+    "large_negative_integer": -12345678901234567,
+    "exponential_notation": 1.23e+24,
+    "small_exponential_notation": 4.56E-12,
+    "unsafe_precision_float": 1.0000000000000001
+  }
+}

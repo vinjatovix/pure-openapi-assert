@@ -6,18 +6,20 @@ import {
   safeStringify
 } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
+import {
+  formatArrayMinItemsError,
+  formatArrayMaxItemsError,
+  formatArrayUniqueError,
+  formatExpectedArrayError
+} from '../core/errors.js';
 
 function validateArrayBounds(args: ValidationArgs<unknown[]>): void {
   const { value, schema, ctx } = args;
   if (schema.minItems !== undefined && value.length < schema.minItems) {
-    ctx.addError(
-      `Array has ${value.length} items, minimum is ${schema.minItems}`
-    );
+    ctx.addError(formatArrayMinItemsError(value.length, schema.minItems));
   }
   if (schema.maxItems !== undefined && value.length > schema.maxItems) {
-    ctx.addError(
-      `Array has ${value.length} items, maximum is ${schema.maxItems}`
-    );
+    ctx.addError(formatArrayMaxItemsError(value.length, schema.maxItems));
   }
 }
 
@@ -78,14 +80,14 @@ function validateArrayUnique(args: ValidationArgs<unknown[]>): void {
   for (const item of value) {
     if (isPrimitive(item) || item === null) {
       if (seenPrimitives.has(item)) {
-        ctx.addError('Array elements must be unique');
+        ctx.addError(formatArrayUniqueError());
         return;
       }
       seenPrimitives.add(item);
     } else {
       const serialized = canonicalStringify(item, tracker);
       if (seenObjects.has(serialized)) {
-        ctx.addError('Array elements must be unique');
+        ctx.addError(formatArrayUniqueError());
         return;
       }
       seenObjects.add(serialized);
@@ -120,7 +122,7 @@ export function validateArray(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (!Array.isArray(value)) {
     ctx.addError(
-      `Expected array, received ${value === null ? 'null' : typeof value}`
+      formatExpectedArrayError(value === null ? 'null' : typeof value)
     );
     return;
   }

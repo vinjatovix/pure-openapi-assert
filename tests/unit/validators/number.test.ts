@@ -869,4 +869,62 @@ describe('validators/number', () => {
       assertValid(ctx);
     });
   });
+
+  describe('unified numeric limits validations', () => {
+    it('should correctly assert standard minimum boundaries using unified checks', () => {
+      const schema = schemaMother.number({ minimum: 10 });
+      ctx = contextMother.empty();
+
+      validateMinConstraint({
+        value: 9,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Value 9 is less than minimum 10');
+    });
+
+    it('should correctly assert exclusive minimum boundaries using unified checks', () => {
+      const schema = schemaMother.number({ minimum: 10, exclusiveMinimum: true });
+      ctx = contextMother.empty();
+
+      validateMinConstraint({
+        value: 10,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Value 10 is less than or equal to minimum 10');
+    });
+
+    it('should correctly assert standard maximum boundaries using unified checks', () => {
+      const schema = schemaMother.number({ maximum: 20 });
+      ctx = contextMother.empty();
+
+      validateMaxConstraint({
+        value: 21,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Value 21 is greater than maximum 20');
+    });
+
+    it('should correctly assert exclusive maximum boundaries using unified checks', () => {
+      const schema = schemaMother.number({ maximum: 20, exclusiveMaximum: true });
+      ctx = contextMother.empty();
+
+      validateMaxConstraint({
+        value: 20,
+        schema,
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Value 20 is greater than or equal to maximum 20');
+    });
+  });
 });

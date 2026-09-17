@@ -1,7 +1,11 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { OpenAPIV3 } from 'openapi-types';
 import { INTEGER_STRING_REGEX } from '../core/constants.js';
-import { safeStringify } from '../core/utils.js';
+import {
+  formatEnumError,
+  formatConstError,
+  formatTypeError
+} from '../core/errors.js';
 import { type ValidationArgs } from './args.js';
 import { validateStringConstraints } from './string.js';
 import {
@@ -32,9 +36,7 @@ export function validateEnum(args: ValidationArgs): void {
   }
 
   if (!enumSet.has(value)) {
-    ctx.addError(
-      `Expected one of [${schema.enum.join(', ')}], received ${safeStringify(value)}`
-    );
+    ctx.addError(formatEnumError(schema.enum, value));
   }
 }
 
@@ -46,9 +48,7 @@ export function validateConst(args: ValidationArgs): void {
   if (value === withConst.const) return;
 
   if (!isDeepStrictEqual(value, withConst.const)) {
-    ctx.addError(
-      `Expected exactly ${safeStringify(withConst.const)}, received ${safeStringify(value)}`
-    );
+    ctx.addError(formatConstError(withConst.const, value));
   }
 }
 
@@ -83,9 +83,7 @@ export function validateTypeCheck(args: ValidationArgs): boolean {
     !isValidInt64String(expectedType, schema.format, value) &&
     !isTypeValid(value)
   ) {
-    ctx.addError(
-      `Expected ${expectedType}, received ${getReceivedType(value)}`
-    );
+    ctx.addError(formatTypeError(expectedType, getReceivedType(value)));
     return false;
   }
 
