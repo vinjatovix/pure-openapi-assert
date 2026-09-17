@@ -1,3 +1,9 @@
+import {
+  formatStringMinLengthError,
+  formatStringMaxLengthError,
+  formatStringPatternError,
+  formatStringFormatError
+} from '../core/errors.js';
 import { type ValidationArgs } from './args.js';
 import { formatRegistry, getCachedRegex } from './format.js';
 
@@ -18,23 +24,17 @@ function validateStringFormat(args: ValidationArgs<string>): void {
         : undefined;
 
   if (typeof formatCheck === 'function' && !formatCheck(value)) {
-    ctx.addError(
-      `Expected string format '${schema.format}', received '${value}'`
-    );
+    ctx.addError(formatStringFormatError(schema.format, value));
   }
 }
 
 function validateStringLength(args: ValidationArgs<string>): void {
   const { value, schema, ctx } = args;
   if (schema.minLength !== undefined && value.length < schema.minLength) {
-    ctx.addError(
-      `String length ${value.length} is less than minimum ${schema.minLength}`
-    );
+    ctx.addError(formatStringMinLengthError(value.length, schema.minLength));
   }
   if (schema.maxLength !== undefined && value.length > schema.maxLength) {
-    ctx.addError(
-      `String length ${value.length} exceeds maximum ${schema.maxLength}`
-    );
+    ctx.addError(formatStringMaxLengthError(value.length, schema.maxLength));
   }
 }
 
@@ -43,7 +43,7 @@ function validateStringPattern(args: ValidationArgs<string>): void {
   if (schema.pattern) {
     const regex = getCachedRegex(schema.pattern);
     if (!regex.test(value)) {
-      ctx.addError(`String does not match pattern ${schema.pattern}`);
+      ctx.addError(formatStringPatternError(schema.pattern));
     }
   }
 }

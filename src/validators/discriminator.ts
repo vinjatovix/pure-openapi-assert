@@ -1,5 +1,11 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { ValidationContext } from '../core/ValidationContext.js';
+import {
+  formatDiscriminatorNotObjectError,
+  formatDiscriminatorMissingPropertyError,
+  formatDiscriminatorNotPrimitiveError,
+  formatDiscriminatorMismatchError
+} from '../core/errors.js';
 import { isPlainObject, isPrimitive } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 import { findSchemaByPointer } from './pointers.js';
@@ -72,29 +78,23 @@ function getDiscriminatorValue(args: {
 }): string | null {
   const { value, propertyName, ctx } = args;
   if (!isPlainObject(value)) {
-    ctx.addError('Discriminator validation failed: value is not an object');
+    ctx.addError(formatDiscriminatorNotObjectError());
     return null;
   }
 
   if (!Object.hasOwn(value, propertyName)) {
-    ctx.addError(
-      `Discriminator property '${propertyName}' is missing in object`
-    );
+    ctx.addError(formatDiscriminatorMissingPropertyError(propertyName));
     return null;
   }
 
   const discriminatorValue = value[propertyName];
   if (discriminatorValue === undefined) {
-    ctx.addError(
-      `Discriminator property '${propertyName}' is missing in object`
-    );
+    ctx.addError(formatDiscriminatorMissingPropertyError(propertyName));
     return null;
   }
 
   if (!isPrimitive(discriminatorValue)) {
-    ctx.addError(
-      `Discriminator property '${propertyName}' must be a primitive value`
-    );
+    ctx.addError(formatDiscriminatorNotPrimitiveError(propertyName));
     return null;
   }
 
@@ -161,7 +161,11 @@ export function resolveDiscriminatorSchema(args: {
   }
 
   ctx.addError(
-    `Discriminator '${discriminator.propertyName}' value '${discriminatorValue}' does not match any schema in '${compositionType}'`
+    formatDiscriminatorMismatchError({
+      propertyName: discriminator.propertyName,
+      value: discriminatorValue,
+      compositionType
+    })
   );
 
   return { type: 'failed' };

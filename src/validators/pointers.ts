@@ -4,10 +4,11 @@ import {
   JSON_POINTER_SLASH_REGEX,
   JSON_POINTER_TILDE_REGEX
 } from '../core/constants.js';
+import { formatUnresolvedRefError } from '../core/errors.js';
 import { FIFOCache } from '../core/FIFOCache.js';
+import { stateManager } from '../core/StateManager.js';
 import { isSchemaObject } from '../core/utils.js';
 import { ValidationContext } from '../core/ValidationContext.js';
-import { stateManager } from '../core/StateManager.js';
 
 function getOrInitSpecCache(
   spec: OpenAPIV3.Document
@@ -146,7 +147,7 @@ export function resolveSchema(
     }
   }
 
-  const refMsg = `Unresolved $ref: '${schema.$ref}'. Ensure your OpenAPI spec is fully dereferenced.`;
+  const refMsg = formatUnresolvedRefError(schema.$ref);
 
   if (ctx) {
     ctx.addError(refMsg, { code: 'UNRESOLVED_REF' });

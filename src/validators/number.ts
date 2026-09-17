@@ -6,6 +6,17 @@ import {
   INT64_MIN,
   INTEGER_STRING_REGEX
 } from '../core/constants.js';
+import {
+  formatMinError,
+  formatMaxError,
+  formatMultipleOfError,
+  formatInt32Error,
+  formatInt64Error,
+  formatInt64InvalidError,
+  formatInt64ExceedsError,
+  formatFloatError,
+  formatDoubleError
+} from '../core/errors.js';
 import { type ValidationContext } from '../core/ValidationContext.js';
 import { type ValidationArgs } from './args.js';
 
@@ -19,109 +30,128 @@ function extractBigIntVal(value: unknown): bigint | undefined {
   return undefined;
 }
 
-function validateMinBigIntConstraint(args: ValidationArgs): void {
-  const { value, schema, ctx } = args;
-  const bigintVal = extractBigIntVal(value);
-  if (bigintVal === undefined) {
-    return;
-  }
-
-  const bound = parseBigIntBound(schema.minimum, Math.ceil);
-  if (!bound) {
-    return;
-  }
-
-  const isViolation =
-    schema.exclusiveMinimum && !bound.isFractional
-      ? bigintVal <= bound.value
-      : bigintVal < bound.value;
-
-  if (isViolation) {
-    ctx.addError(
-      `Value ${String(value)} is less than ${schema.exclusiveMinimum ? 'or equal to ' : ''}minimum ${schema.minimum}`
-    );
-  }
-}
-
-function validateMinNumberConstraint(args: ValidationArgs): void {
-  const { value, schema, ctx } = args;
-  if (schema.minimum === undefined || typeof value !== 'number') {
-    return;
-  }
-  const isViolation = schema.exclusiveMinimum
-    ? value <= schema.minimum
-    : value < schema.minimum;
-  if (isViolation) {
-    ctx.addError(
-      `Value ${String(value)} is less than ${schema.exclusiveMinimum ? 'or equal to ' : ''}minimum ${schema.minimum}`
-    );
+function checkNumericLimitViolation(args: {
+  value: number | bigint;
+  boundValue: number | bigint;
+  exclusive: boolean;
+  isFractional: boolean;
+  isMin: boolean;
+}): boolean {
+  const { value, boundValue, exclusive, isFractional, isMin } = args;
+  if (isMin) {
+    return exclusive && !isFractional
+      ? value <= boundValue
+      : value < boundValue;
+  } else {
+    return exclusive && !isFractional
+      ? value >= boundValue
+      : value > boundValue;
   }
 }
 
 export function validateMinConstraint(args: ValidationArgs): void {
-  const { value, schema } = args;
+  const { value, schema, ctx } = args;
   if (schema.minimum === undefined) return;
 
-  if (
+  const isBigIntFormat =
     (typeof value === 'string' && schema.format === 'int64') ||
-    typeof value === 'bigint'
-  ) {
-    validateMinBigIntConstraint(args);
+    typeof value === 'bigint';
+
+  if (isBigIntFormat) {
+    const bigintVal = extractBigIntVal(value);
+    if (bigintVal === undefined) return;
+
+    const bound = parseBigIntBound(schema.minimum, Math.ceil);
+    if (!bound) return;
+
+    if (
+      checkNumericLimitViolation({
+        value: bigintVal,
+        boundValue: bound.value,
+        exclusive: !!schema.exclusiveMinimum,
+        isFractional: bound.isFractional,
+        isMin: true
+      })
+    ) {
+      ctx.addError(
+        formatMinError({
+          value,
+          minimum: schema.minimum,
+          exclusive: !!schema.exclusiveMinimum
+        })
+      );
+    }
   } else if (typeof value === 'number') {
-    validateMinNumberConstraint(args);
-  }
-}
-
-function validateMaxBigIntConstraint(args: ValidationArgs): void {
-  const { value, schema, ctx } = args;
-  const bigintVal = extractBigIntVal(value);
-  if (bigintVal === undefined) {
-    return;
-  }
-
-  const bound = parseBigIntBound(schema.maximum, Math.floor);
-  if (!bound) {
-    return;
-  }
-
-  const isViolation =
-    schema.exclusiveMaximum && !bound.isFractional
-      ? bigintVal >= bound.value
-      : bigintVal > bound.value;
-
-  if (isViolation) {
-    ctx.addError(
-      `Value ${String(value)} is greater than ${schema.exclusiveMaximum ? 'or equal to ' : ''}maximum ${schema.maximum}`
-    );
-  }
-}
-
-function validateMaxNumberConstraint(args: ValidationArgs): void {
-  const { value, schema, ctx } = args;
-  if (schema.maximum === undefined || typeof value !== 'number') {
-    return;
-  }
-  const isViolation = schema.exclusiveMaximum
-    ? value >= schema.maximum
-    : value > schema.maximum;
-  if (isViolation) {
-    ctx.addError(
-      `Value ${String(value)} is greater than ${schema.exclusiveMaximum ? 'or equal to ' : ''}maximum ${schema.maximum}`
-    );
+    if (
+      checkNumericLimitViolation({
+        value,
+        boundValue: schema.minimum,
+        exclusive: !!schema.exclusiveMinimum,
+        isFractional: false,
+        isMin: true
+      })
+    ) {
+      ctx.addError(
+        formatMinError({
+          value,
+          minimum: schema.minimum,
+          exclusive: !!schema.exclusiveMinimum
+        })
+      );
+    }
   }
 }
 
 export function validateMaxConstraint(args: ValidationArgs): void {
-  const { value, schema } = args;
+  const { value, schema, ctx } = args;
   if (schema.maximum === undefined) return;
 
-  if (
+  const isBigIntFormat =
     (typeof value === 'string' && schema.format === 'int64') ||
-    typeof value === 'bigint'
-  ) {
-    validateMaxBigIntConstraint(args);
+    typeof value === 'bigint';
+
+  if (isBigIntFormat) {
+    const bigintVal = extractBigIntVal(value);
+    if (bigintVal === undefined) return;
+
+    const bound = parseBigIntBound(schema.maximum, Math.floor);
+    if (!bound) return;
+
+    if (
+      checkNumericLimitViolation({
+        value: bigintVal,
+        boundValue: bound.value,
+        exclusive: !!schema.exclusiveMaximum,
+        isFractional: bound.isFractional,
+        isMin: false
+      })
+    ) {
+      ctx.addError(
+        formatMaxError({
+          value,
+          maximum: schema.maximum,
+          exclusive: !!schema.exclusiveMaximum
+        })
+      );
+    }
   } else if (typeof value === 'number') {
-    validateMaxNumberConstraint(args);
+    if (
+      checkNumericLimitViolation({
+        value,
+        boundValue: schema.maximum,
+        exclusive: !!schema.exclusiveMaximum,
+        isFractional: false,
+        isMin: false
+      })
+    ) {
+      ctx.addError(
+        formatMaxError({
+          value,
+          maximum: schema.maximum,
+          exclusive: !!schema.exclusiveMaximum
+        })
+      );
+    }
   }
 }
 
@@ -173,9 +203,7 @@ function validateMultipleOfBigIntConstraint(args: ValidationArgs): void {
   const adjustedVal = bigintVal * resolved.multiplier;
 
   if (adjustedVal % resolved.bigintMultiple !== 0n) {
-    ctx.addError(
-      `Value ${String(value)} is not a multiple of ${schema.multipleOf}`
-    );
+    ctx.addError(formatMultipleOfError(value, schema.multipleOf));
   }
 }
 
@@ -289,9 +317,7 @@ function validateMultipleOfNumberConstraint(args: ValidationArgs): void {
       : isMultipleOfDecimal(valNum, multipleOfNum);
 
   if (!isMultiple) {
-    ctx.addError(
-      `Value ${String(value)} is not a multiple of ${schema.multipleOf}`
-    );
+    ctx.addError(formatMultipleOfError(value, schema.multipleOf));
   }
 }
 
@@ -313,14 +339,14 @@ function validateInt32(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (typeof value === 'number') {
     if (!Number.isInteger(value) || value < INT32_MIN || value > INT32_MAX) {
-      ctx.addError(`Expected 32-bit integer, received ${String(value)}`);
+      ctx.addError(formatInt32Error(String(value)));
     }
   } else if (typeof value === 'bigint') {
     if (value < BigInt(INT32_MIN) || value > BigInt(INT32_MAX)) {
-      ctx.addError(`Expected 32-bit integer, received ${String(value)}`);
+      ctx.addError(formatInt32Error(String(value)));
     }
   } else {
-    ctx.addError(`Expected 32-bit integer, received ${typeof value}`);
+    ctx.addError(formatInt32Error(typeof value));
   }
 }
 
@@ -330,18 +356,18 @@ function validateInt64Number(value: number, ctx: ValidationContext): void {
     value < Number.MIN_SAFE_INTEGER ||
     value > Number.MAX_SAFE_INTEGER
   ) {
-    ctx.addError(`Expected 64-bit integer, received ${String(value)}`);
+    ctx.addError(formatInt64Error(String(value)));
   }
 }
 
 function validateInt64String(value: string, ctx: ValidationContext): void {
   if (!INTEGER_STRING_REGEX.test(value)) {
-    ctx.addError(`Value ${String(value)} is not a valid 64-bit integer`);
+    ctx.addError(formatInt64InvalidError(value));
     return;
   }
   const bigint = BigInt(value);
   if (bigint < INT64_MIN || bigint > INT64_MAX) {
-    ctx.addError(`Value ${String(value)} exceeds 64-bit integer limits`);
+    ctx.addError(formatInt64ExceedsError(value));
   }
 }
 
@@ -360,24 +386,24 @@ function validateInt64(args: ValidationArgs): void {
 
   if (typeof value === 'bigint') {
     if (value < INT64_MIN || value > INT64_MAX) {
-      ctx.addError(`Value ${String(value)} exceeds 64-bit integer limits`);
+      ctx.addError(formatInt64ExceedsError(value));
     }
     return;
   }
 
-  ctx.addError(`Expected 64-bit integer, received ${typeof value}`);
+  ctx.addError(formatInt64Error(typeof value));
 }
 
 function validateFloat(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (typeof value !== 'number') {
-    ctx.addError(`Expected 32-bit float, received ${typeof value}`);
+    ctx.addError(formatFloatError(typeof value));
     return;
   }
 
   const abs = Math.abs(value);
   if (Number.isNaN(value) || !Number.isFinite(value) || abs > FLOAT32_MAX) {
-    ctx.addError(`Expected 32-bit float, received ${String(value)}`);
+    ctx.addError(formatFloatError(String(value)));
   }
 }
 
@@ -388,7 +414,7 @@ function validateDouble(args: ValidationArgs): void {
     Number.isNaN(value) ||
     !Number.isFinite(value)
   ) {
-    ctx.addError(`Expected 64-bit float, received ${String(value)}`);
+    ctx.addError(formatDoubleError(value));
   }
 }
 
