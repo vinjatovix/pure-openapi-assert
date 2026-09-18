@@ -9,6 +9,10 @@ import { resolveSchema } from '../validators/pointers.js';
 /** @internal */
 export const BIGINT_PREFIX = `__bigint_${Math.random().toString(36).slice(2, 8)}__`;
 
+/** @internal */
+export const FAST_PATH_UNSAFE_REGEX =
+  /(?<=^|[: ,[{])\s*-?(?:\d[\d.]{15,}|\d+(?:\.\d+)?[eE][+-]?\d+)(?=\s*(?:$|[,}\]]))/;
+
 function getEscapeChar(
   char: string,
   nextChar: string | undefined,
@@ -184,6 +188,13 @@ export function parseJSONLossless(str: string): unknown {
     : undefined;
   if (coercedInt !== undefined) {
     return coercedInt;
+  }
+
+  if (
+    !trimmed.includes(BIGINT_PREFIX) &&
+    !FAST_PATH_UNSAFE_REGEX.test(trimmed)
+  ) {
+    return JSON.parse(trimmed);
   }
 
   const replaced = losslessReplace(trimmed);

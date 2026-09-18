@@ -1,6 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
 import { contextMother } from '../../helpers/contextMother.js';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import type { OpenAPIV3 } from 'openapi-types';
 import {
   parseCSVHeader,
@@ -10,13 +16,17 @@ import {
   coerceArray,
   coerceHeaderValue,
   normalizeHeaders,
-  BIGINT_PREFIX
+  BIGINT_PREFIX,
+  FAST_PATH_UNSAFE_REGEX
 } from '../../../src/core/coercion.js';
 import { CycleTracker } from '../../../src/core/CycleTracker.js';
 import { ValidationContext } from '../../../src/core/ValidationContext.js';
 import { schemaMother } from '../../helpers/schemaMother.js';
 
 describe('coercion utility unit tests', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   describe('parseCSVHeader', () => {
     it('handles nested quotes and escaped characters', () => {
       const result = parseCSVHeader('a, "b, \\"c\\"", d');
@@ -83,6 +93,165 @@ describe('coercion utility unit tests', () => {
       const result = parseJSONLossless(payload);
 
       expect(result).toBe(`${BIGINT_PREFIX}123`);
+    });
+
+    it('successfully parses safe payloads via fast-path without invoking a reviver', () => {
+      const jsonParseSpy = vi.spyOn(JSON, 'parse');
+      const safePayload = '{"name":"Alice","age":30}';
+
+      const result = parseJSONLossless(safePayload);
+
+      expect(result).toEqual({ name: 'Alice', age: 30 });
+      expect(jsonParseSpy).toHaveBeenCalled();
+      const lastCall =
+        jsonParseSpy.mock.calls[jsonParseSpy.mock.calls.length - 1];
+      expect(lastCall?.[1]).toBeUndefined();
+    });
+
+    it('falls back to slow-path and invokes reviver for unsafe payloads', () => {
+      const jsonParseSpy = vi.spyOn(JSON, 'parse');
+      const unsafePayload = '{"id":9007199254740993}';
+
+      const result = parseJSONLossless(unsafePayload);
+
+      expect(result).toEqual({ id: 9007199254740993n });
+      expect(jsonParseSpy).toHaveBeenCalled();
+      const lastCall =
+        jsonParseSpy.mock.calls[jsonParseSpy.mock.calls.length - 1];
+      expect(lastCall?.[1]).toBeTypeOf('function');
+    });
+
+    it('forces slow-path and invokes reviver when payload contains BIGINT_PREFIX', () => {
+      const jsonParseSpy = vi.spyOn(JSON, 'parse');
+      const payloadWithPrefix = `{"prefix":"some_${BIGINT_PREFIX}_value"}`;
+
+      parseJSONLossless(payloadWithPrefix);
+
+      expect(jsonParseSpy).toHaveBeenCalled();
+      const lastCall =
+        jsonParseSpy.mock.calls[jsonParseSpy.mock.calls.length - 1];
+      expect(lastCall?.[1]).toBeTypeOf('function');
+    });
+
+    it.fails(
+      'deliberately fails with an active spy to verify isolation',
+      () => {
+        vi.spyOn(JSON, 'parse');
+
+        expect(true).toBe(false);
+      }
+    );
+
+    it('verifies that subsequent tests remain isolated and unaffected by the failed test spy', () => {
+      expect(vi.isMockFunction(JSON.parse)).toBe(false);
+    });
+
+    it('correctly parses safe primitives from external lossless-fixtures', () => {
+      const fixturePath = path.resolve(
+        __dirname,
+        '../../fixtures/lossless-fixtures.json'
+      );
+      const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+
+      const result = parseJSONLossless(fixtureContent);
+
+      expect(result).toMatchObject({
+        safe: {
+          integer: 42,
+          float: 1.23,
+          negative_integer: -100,
+          negative_float: -0.5,
+          zero: 0,
+          string: 'Hello, world!',
+          boolean: true,
+          null_val: null
+        }
+      });
+    });
+
+    it('correctly parses safe nested arrays and objects from external lossless-fixtures', () => {
+      const fixturePath = path.resolve(
+        __dirname,
+        '../../fixtures/lossless-fixtures.json'
+      );
+      const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+
+      const result = parseJSONLossless(fixtureContent);
+
+      expect(result).toMatchObject({
+        safe: {
+          nested_array: [1, 2, 3],
+          nested_obj: {
+            a: 'b',
+            number: 99
+          }
+        }
+      });
+    });
+
+    it('correctly parses unsafe large positive integers as BigInt from external lossless-fixtures', () => {
+      const fixturePath = path.resolve(
+        __dirname,
+        '../../fixtures/lossless-fixtures.json'
+      );
+      const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+
+      const result = parseJSONLossless(fixtureContent);
+
+      expect(result).toMatchObject({
+        unsafe: {
+          large_integer: 9007199254740993n
+        }
+      });
+    });
+
+    it('correctly parses unsafe large negative integers as BigInt from external lossless-fixtures', () => {
+      const fixturePath = path.resolve(
+        __dirname,
+        '../../fixtures/lossless-fixtures.json'
+      );
+      const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+
+      const result = parseJSONLossless(fixtureContent);
+
+      expect(result).toMatchObject({
+        unsafe: {
+          large_negative_integer: -12345678901234567n
+        }
+      });
+    });
+
+    it('correctly parses numbers in scientific exponential notation from external lossless-fixtures', () => {
+      const fixturePath = path.resolve(
+        __dirname,
+        '../../fixtures/lossless-fixtures.json'
+      );
+      const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+
+      const result = parseJSONLossless(fixtureContent);
+
+      expect(result).toMatchObject({
+        unsafe: {
+          exponential_notation: 1.23e24,
+          small_exponential_notation: 4.56e-12
+        }
+      });
+    });
+
+    it('correctly parses unsafe high-precision floats as strings to preserve precision from external lossless-fixtures', () => {
+      const fixturePath = path.resolve(
+        __dirname,
+        '../../fixtures/lossless-fixtures.json'
+      );
+      const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+
+      const result = parseJSONLossless(fixtureContent);
+
+      expect(result).toMatchObject({
+        unsafe: {
+          unsafe_precision_float: '1.0000000000000001'
+        }
+      });
     });
   });
 
@@ -211,19 +380,29 @@ describe('coercion utility unit tests', () => {
       it('restores keys starting with BIGINT_PREFIX so they are not permanently corrupted', () => {
         const payload = `{"${BIGINT_PREFIX}_id": 9007199254740993}`;
 
-        const parsed = parseJSONLossless(payload) as Record<string, unknown>;
+        const parsed = parseJSONLossless(payload);
 
         expect(parsed).toBeDefined();
-        const firstKey = Object.keys(parsed)[0];
-        expect(firstKey).toBe(`${BIGINT_PREFIX}_id`);
-        expect(parsed[`${BIGINT_PREFIX}_id`]).toBe(9007199254740993n);
+        expect(parsed).toMatchObject({
+          [`${BIGINT_PREFIX}_id`]: 9007199254740993n
+        });
+        if (parsed && typeof parsed === 'object') {
+          const firstKey = Object.keys(parsed)[0];
+          expect(firstKey).toBe(`${BIGINT_PREFIX}_id`);
+        } else {
+          throw new Error('Expected parsed to be an object');
+        }
       });
     });
 
     describe('Strict reference resolution in compositions', () => {
       it('resolves valid pointers inside compositions', () => {
-        const mockSpec = new DocumentBuilder().withSchema('TargetInt', schemaMother.integer()).build();
-        const schema = schemaMother.oneOf([{ $ref: '#/components/schemas/TargetInt' }]);
+        const mockSpec = new DocumentBuilder()
+          .withSchema('TargetInt', schemaMother.integer())
+          .build();
+        const schema = schemaMother.oneOf([
+          { $ref: '#/components/schemas/TargetInt' }
+        ]);
         const ctx = new ValidationContext({ spec: mockSpec });
 
         const result = coerceHeaderValue({ value: '42', schema, ctx });
@@ -234,7 +413,9 @@ describe('coercion utility unit tests', () => {
 
       it('throws or records error for unresolved refs inside compositions', () => {
         const mockSpec = new DocumentBuilder().build();
-        const schema = schemaMother.allOf([{ $ref: '#/components/schemas/NonExistent' }]);
+        const schema = schemaMother.allOf([
+          { $ref: '#/components/schemas/NonExistent' }
+        ]);
         const ctx = new ValidationContext({ spec: mockSpec });
 
         coerceHeaderValue({ value: 'val', schema, ctx });
@@ -345,7 +526,13 @@ describe('coercion utility unit tests', () => {
     });
 
     it('should handle falsy schemas in polymorphic recursion checks (T013)', () => {
-      const schema = schemaMother.allOf([undefined] as unknown as OpenAPIV3.SchemaObject[]);
+      const schema: OpenAPIV3.SchemaObject = {
+        allOf: []
+      };
+      if (schema.allOf) {
+        const allOfArray: unknown[] = schema.allOf;
+        allOfArray.push(undefined);
+      }
 
       const result = coerceHeaderValue({ value: '123', schema });
 
@@ -363,7 +550,10 @@ describe('coercion utility unit tests', () => {
 
     it('should correctly coerce polymorphic items inside arrays instead of validating items against the array boundary schema (T015)', () => {
       const schema = schemaMother.array({
-        items: schemaMother.oneOf([schemaMother.integer(), schemaMother.string()])
+        items: schemaMother.oneOf([
+          schemaMother.integer(),
+          schemaMother.string()
+        ])
       });
 
       const result = coerceHeaderValue({
@@ -388,7 +578,7 @@ describe('core/coercion optimizations', () => {
     {
       description:
         'should coerce correctly using anyOf header without relying on arrays allocations',
-      schema: { anyOf: [{ type: 'boolean' as const }] },
+      schema: { anyOf: [{ type: 'boolean' }] },
       value: 'true',
       expected: true
     }
@@ -432,6 +622,52 @@ describe('core/coercion optimizations', () => {
       });
 
       expect(result).toEqual([1, 2]);
+    });
+  });
+
+  describe('FAST_PATH_UNSAFE_REGEX', () => {
+    it.each([
+      { input: '{"value": 1.2e+3}' },
+      { input: '{"val": -1.2e-3}' },
+      { input: '{"num": 1.2e3}' },
+      { input: '{"scientific": [1.2e3]}' },
+      { input: '[1.2e3]' },
+      { input: '1.2e3' },
+      { input: '9007199254740993' }
+    ])(
+      'matches valid scientific notation or unsafe integers: $input',
+      ({ input }) => {
+        const pattern = FAST_PATH_UNSAFE_REGEX;
+
+        const result = pattern.test(input);
+
+        expect(result).toBe(true);
+      }
+    );
+
+    it.each([
+      { input: '{"uuid": "123e4567-e89b-12d3-a456-426614174000"}' },
+      { input: '{"page": "page5"}' },
+      { input: '{"type": "type1"}' },
+      { input: '{"email": "test@example.com"}' },
+      { input: '{"text": "some words with e4"}' }
+    ])('ignores safe string payloads: $input', ({ input }) => {
+      const pattern = FAST_PATH_UNSAFE_REGEX;
+
+      const result = pattern.test(input);
+
+      expect(result).toBe(false);
+    });
+
+    it('guarantees linear-time execution on large numeric payloads to prevent catastrophic backtracking', () => {
+      const largePayload = '{"value": 1' + '.5'.repeat(50000) + 'a}';
+      const pattern = FAST_PATH_UNSAFE_REGEX;
+      const start = performance.now();
+
+      pattern.test(largePayload);
+      const duration = performance.now() - start;
+
+      expect(duration).toBeLessThan(50);
     });
   });
 });
