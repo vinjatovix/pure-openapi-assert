@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
+describe('assertResponseMatchesOpenApi - Headers basic E2E', () => {
   const specPath = 'tests/fixtures/e2e/headers.yaml';
 
   describe('Header Validation', () => {
     it('should pass when required and correctly typed headers are present', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -26,7 +26,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should validate headers defined using content', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -40,7 +40,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
       ).rejects.toThrow('[headers.X-JSON-Header.foo] Missing required field');
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -58,7 +58,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should fail with a semantic error when a header using content has invalid JSON', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -74,7 +74,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should throw an error when a required header is missing', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -89,7 +89,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should throw an error when a header value fails format constraints', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -105,7 +105,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should throw an error when a header value fails numeric range constraints', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -121,7 +121,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should correctly handle and validate list/array headers', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -137,7 +137,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
     it('should throw an error when a boolean header receives an invalid value', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/headers',
           method: 'GET',
@@ -154,7 +154,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
     describe('Robustness and DX Defensive Handling', () => {
       it('should gracefully handle and pass pre-coerced types (numbers, booleans, arrays)', async () => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/headers',
             method: 'GET',
@@ -172,7 +172,7 @@ describe('assertResponseMatchesOpenAPI - Headers basic E2E', () => {
 
       it('should not crash and instead fail semantically when receiving raw invalid non-string values', async () => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/headers',
             method: 'GET',

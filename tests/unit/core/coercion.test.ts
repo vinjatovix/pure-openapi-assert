@@ -578,7 +578,7 @@ describe('core/coercion optimizations', () => {
     {
       description:
         'should coerce correctly using anyOf header without relying on arrays allocations',
-      schema: { anyOf: [{ type: 'boolean' }] },
+      schema: { anyOf: [schemaMother.boolean()] },
       value: 'true',
       expected: true
     }

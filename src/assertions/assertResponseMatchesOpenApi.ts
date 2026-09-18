@@ -14,16 +14,310 @@ import { loadSpec } from '../openapi/loader.js';
 import { getResponseSchema } from '../openapi/router.js';
 import { validateShape } from '../validators/index.js';
 
-export type OpenAPIValidatorInput = {
+export interface FetchLikeResponse {
+  status: number;
+  headers?:
+    | {
+        get(name: string): string | null;
+        entries?: () => Iterable<[string, string]>;
+      }
+    | Record<string, unknown>;
+  json(): Promise<unknown>;
+  text(): Promise<string>;
+  bodyUsed?: boolean;
+  clone?: () => FetchLikeResponse;
+}
+
+export interface NodeLikeResponse {
+  status?: number;
+  statusCode?: number;
+  headers?: Record<string, unknown>;
+  body?: unknown;
+  data?: unknown;
+  text?: string;
+}
+
+export type PolymorphicResponse = FetchLikeResponse | NodeLikeResponse;
+
+export type OpenAPIValidatorInput = (
+  | {
+      status: number;
+      body: unknown;
+      headers?: Record<string, string | string[]>;
+      contentType?: string;
+      response?: never;
+      res?: never;
+    }
+  | {
+      status?: number;
+      body?: unknown;
+      headers?: Record<string, string | string[]>;
+      contentType?: string;
+      response: PolymorphicResponse;
+      res?: never;
+    }
+  | {
+      status?: number;
+      body?: unknown;
+      headers?: Record<string, string | string[]>;
+      contentType?: string;
+      response?: never;
+      res: PolymorphicResponse;
+    }
+) & {
   specPath: string;
   path: string;
   method: string;
-  status: number;
-  body: unknown;
-  headers?: Record<string, string | string[]>;
-  contentType?: string;
   customFormats?: Record<string, (val: string) => boolean> | undefined;
 };
+
+interface ExtractedResponse {
+  status: number;
+  headers: Record<string, string | string[]>;
+  contentType: string | undefined;
+  body: unknown;
+  bodyParseError: string | undefined;
+}
+
+interface HasGet {
+  get(name: string): unknown;
+}
+interface HasEntries {
+  entries(): Iterable<[string, string]>;
+}
+interface HasClone {
+  clone(): unknown;
+}
+interface HasJsonText {
+  json(): Promise<unknown>;
+  text(): Promise<string>;
+}
+
+function hasProperty<K extends string>(
+  obj: unknown,
+  key: K
+): obj is Record<K, unknown> {
+  return typeof obj === 'object' && obj !== null && key in obj;
+}
+
+function hasGet(obj: unknown): obj is HasGet {
+  return hasProperty(obj, 'get') && typeof obj.get === 'function';
+}
+
+function hasEntries(obj: unknown): obj is HasEntries {
+  return hasProperty(obj, 'entries') && typeof obj.entries === 'function';
+}
+
+function hasClone(obj: unknown): obj is HasClone {
+  return hasProperty(obj, 'clone') && typeof obj.clone === 'function';
+}
+
+function hasJsonText(obj: unknown): obj is HasJsonText {
+  return (
+    hasProperty(obj, 'json') &&
+    typeof obj.json === 'function' &&
+    hasProperty(obj, 'text') &&
+    typeof obj.text === 'function'
+  );
+}
+
+function extractStatus(res: unknown): number | undefined {
+  if (hasProperty(res, 'status') && typeof res.status === 'number') {
+    return res.status;
+  }
+  if (hasProperty(res, 'statusCode') && typeof res.statusCode === 'number') {
+    return res.statusCode;
+  }
+  return undefined;
+}
+
+function stringifyHeaderValue(val: unknown): string {
+  if (typeof val === 'object' && val !== null) {
+    return JSON.stringify(val);
+  }
+  if (typeof val === 'symbol') {
+    return val.toString();
+  }
+  return String(val);
+}
+
+function extractHeadersFromEntries(
+  rawHeaders: HasEntries
+): Record<string, string | string[]> | undefined {
+  try {
+    const headers: Record<string, string | string[]> = {};
+    for (const [key, val] of rawHeaders.entries()) {
+      headers[key] = val;
+    }
+    return headers;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractHeadersFromObject(
+  rawHeaders: Record<string, unknown>
+): Record<string, string | string[]> {
+  const headers: Record<string, string | string[]> = {};
+  for (const [key, val] of Object.entries(rawHeaders)) {
+    if (val !== undefined && val !== null && typeof val !== 'function') {
+      headers[key] = Array.isArray(val)
+        ? val.map(stringifyHeaderValue)
+        : stringifyHeaderValue(val);
+    }
+  }
+  return headers;
+}
+
+function extractHeaders(res: unknown): Record<string, string | string[]> {
+  if (
+    !hasProperty(res, 'headers') ||
+    !res.headers ||
+    typeof res.headers !== 'object'
+  ) {
+    return {};
+  }
+  const rawHeaders = res.headers;
+
+  if (hasEntries(rawHeaders)) {
+    const entriesHeaders = extractHeadersFromEntries(rawHeaders);
+    if (entriesHeaders) {
+      return entriesHeaders;
+    }
+  }
+
+  const headers = extractHeadersFromObject(
+    rawHeaders as Record<string, unknown>
+  );
+
+  if (hasGet(rawHeaders)) {
+    const contentTypeVal = rawHeaders.get('content-type');
+    if (typeof contentTypeVal === 'string') {
+      headers['content-type'] = contentTypeVal;
+    }
+  }
+
+  return headers;
+}
+
+interface FetchBodyResult {
+  body: unknown;
+  bodyParseError: string | undefined;
+}
+
+async function extractFetchBody(
+  res: unknown,
+  contentType: string | undefined
+): Promise<FetchBodyResult> {
+  if (!hasJsonText(res)) {
+    return { body: undefined, bodyParseError: undefined };
+  }
+
+  const activeRes = hasClone(res) ? (res.clone() as HasJsonText) : res;
+
+  if (contentType && isJson(contentType)) {
+    try {
+      return { body: await activeRes.json(), bodyParseError: undefined };
+    } catch (err: unknown) {
+      return {
+        body: undefined,
+        bodyParseError: err instanceof Error ? err.message : String(err)
+      };
+    }
+  }
+
+  try {
+    return { body: await activeRes.text(), bodyParseError: undefined };
+  } catch (err: unknown) {
+    return {
+      body: undefined,
+      bodyParseError: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+function extractNodeBody(res: unknown): unknown {
+  if (hasProperty(res, 'body')) {
+    return res.body;
+  }
+  if (hasProperty(res, 'data')) {
+    return res.data;
+  }
+  if (hasProperty(res, 'text')) {
+    return res.text;
+  }
+  return undefined;
+}
+
+function tryParseNodeBody(
+  body: unknown,
+  resolvedContentType: string | undefined
+): unknown {
+  if (
+    resolvedContentType &&
+    isJson(resolvedContentType) &&
+    typeof body === 'string'
+  ) {
+    try {
+      return parseJSONLossless(body);
+    } catch {
+      // Keep original text if parsing fails
+    }
+  }
+  return body;
+}
+
+function extractContentType(
+  headers: Record<string, string | string[]>
+): string | undefined {
+  const contentTypeHeader = headers['content-type'] || headers['Content-Type'];
+  return Array.isArray(contentTypeHeader)
+    ? contentTypeHeader[0]
+    : contentTypeHeader;
+}
+
+async function extractResponseFields(
+  responseObj: unknown
+): Promise<ExtractedResponse> {
+  if (!responseObj || typeof responseObj !== 'object') {
+    throw new Error(
+      'Invalid response object: response must be a non-null object'
+    );
+  }
+
+  const status = extractStatus(responseObj);
+  if (status === undefined) {
+    throw new Error(
+      'Response object must contain a status or statusCode property'
+    );
+  }
+
+  const headers = extractHeaders(responseObj);
+  const contentType = extractContentType(headers);
+
+  const normHeaders = normalizeHeaders(headers);
+  const resolvedContentType =
+    contentType || (normHeaders['content-type'] as string | undefined);
+
+  if (hasJsonText(responseObj)) {
+    const { body, bodyParseError } = await extractFetchBody(
+      responseObj,
+      resolvedContentType
+    );
+    return { status, headers, contentType, body, bodyParseError };
+  }
+
+  const rawBody = extractNodeBody(responseObj);
+  const body = tryParseNodeBody(rawBody, resolvedContentType);
+
+  return {
+    status,
+    headers,
+    contentType,
+    body,
+    bodyParseError: undefined
+  };
+}
 
 function isResponseBodyEmpty(body: unknown): boolean {
   if (body === undefined || body === null) {
@@ -360,19 +654,64 @@ function checkHasContentMap(responseObj: unknown): boolean {
   );
 }
 
-export async function assertResponseMatchesOpenAPI(
+interface ExtractedConfig {
+  status: number;
+  body: unknown;
+  headers: Record<string, string | string[]> | undefined;
+  contentType: string | undefined;
+  bodyParseError: string | undefined;
+}
+
+async function resolveInputsAndOverrides(
   input: OpenAPIValidatorInput
-): Promise<void> {
-  const {
-    specPath,
-    path: reqPath,
-    method,
+): Promise<ExtractedConfig> {
+  const responseObj = input.response ?? input.res;
+  if (responseObj === undefined) {
+    const status = input.status;
+    if (status === undefined) {
+      throw new Error(
+        'A status code must be provided or extracted from the response'
+      );
+    }
+    return {
+      status,
+      body: input.body,
+      headers: input.headers,
+      contentType: input.contentType,
+      bodyParseError: undefined
+    };
+  }
+
+  const extracted = await extractResponseFields(responseObj);
+  const status = input.status !== undefined ? input.status : extracted.status;
+  const body = input.body !== undefined ? input.body : extracted.body;
+  const headers =
+    input.headers !== undefined ? input.headers : extracted.headers;
+  const contentType =
+    input.contentType !== undefined ? input.contentType : extracted.contentType;
+
+  return {
     status,
     body,
+    headers,
     contentType,
-    customFormats,
-    headers
-  } = input;
+    bodyParseError: extracted.bodyParseError
+  };
+}
+
+export async function assertResponseMatchesOpenApi(
+  input: OpenAPIValidatorInput
+): Promise<void> {
+  const { specPath, path: reqPath, method, customFormats } = input;
+
+  const { status, body, headers, contentType, bodyParseError } =
+    await resolveInputsAndOverrides(input);
+
+  if (bodyParseError) {
+    const ctx = new ValidationContext();
+    ctx.addError(`Malformed JSON body: ${bodyParseError}`);
+    handleValidationErrors({ ctx, method, reqPath, status });
+  }
 
   validateNoContentFastPath({ status, body, method, reqPath });
 
@@ -399,11 +738,11 @@ export async function assertResponseMatchesOpenAPI(
     ctx.addWarning(`Endpoint '${method} ${reqPath}' is deprecated`);
   }
 
-  const responseObj =
+  const oasResponseObj =
     operation.responses?.[String(status)] || operation.responses?.default;
-  const hasContentMap = checkHasContentMap(responseObj);
+  const hasContentMap = checkHasContentMap(oasResponseObj);
 
-  if (status !== HTTP_STATUS_NO_CONTENT) {
+  if (status !== HTTP_STATUS_NO_CONTENT && !bodyParseError) {
     validateResponseBody({
       status,
       actualContentType,
@@ -428,3 +767,5 @@ export async function assertResponseMatchesOpenAPI(
 
   handleValidationErrors({ ctx, method, reqPath, status });
 }
+
+export const assertResponse = assertResponseMatchesOpenApi;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => {
+describe('assertResponseMatchesOpenApi - Nested and Dynamic Routing E2E', () => {
   const specPath = 'tests/fixtures/e2e/nested-objects.yaml';
 
   describe('Nested & Nullable Constraints', () => {
@@ -26,7 +26,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
 
     it('should pass if a nested object with arrays matches the schema perfectly', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -49,7 +49,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -66,7 +66,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -90,7 +90,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -117,7 +117,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -141,7 +141,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -165,7 +165,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/nested',
           method: 'GET',
@@ -181,7 +181,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
   describe('Dynamic Routing & Routing Path matching', () => {
     it('should resolve successfully for a dynamic path and hits the path regex cache on second query', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/dynamic/user123',
           method: 'GET',
@@ -191,7 +191,7 @@ describe('assertResponseMatchesOpenAPI - Nested and Dynamic Routing E2E', () => 
       ).resolves.not.toThrow();
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/dynamic/user123',
           method: 'GET',

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
+describe('assertResponseMatchesOpenApi - Constraints E2E', () => {
   const specPath = 'tests/fixtures/e2e/constraints.yaml';
 
   describe('Numeric Constraints', () => {
@@ -15,7 +15,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should pass with valid numeric bounds', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/numbers',
           method: 'GET',
@@ -27,7 +27,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject values below minimum', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/numbers',
           method: 'GET',
@@ -39,7 +39,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject values above maximum', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/numbers',
           method: 'GET',
@@ -51,7 +51,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject values breaking exclusiveMinimum', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/numbers',
           method: 'GET',
@@ -63,7 +63,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject values breaking exclusiveMaximum', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/numbers',
           method: 'GET',
@@ -75,7 +75,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject values that are not multiples of multipleOf', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/numbers',
           method: 'GET',
@@ -89,7 +89,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
   describe('String Constraints', () => {
     it('should pass with valid string constraints', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/strings',
           method: 'GET',
@@ -101,7 +101,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject strings that are too short', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/strings',
           method: 'GET',
@@ -113,7 +113,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject strings that are too long', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/strings',
           method: 'GET',
@@ -125,7 +125,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject strings that do not match the regex pattern', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/strings',
           method: 'GET',
@@ -139,7 +139,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
   describe('Array Constraints', () => {
     it('should pass with valid array constraints', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays',
           method: 'GET',
@@ -151,7 +151,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject arrays with duplicate items when uniqueItems is true', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays',
           method: 'GET',
@@ -163,7 +163,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject arrays with too few items', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays',
           method: 'GET',
@@ -175,7 +175,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject arrays with too many items', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays',
           method: 'GET',
@@ -187,7 +187,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should throw an error if validateArray receives a non-array', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays',
           method: 'GET',
@@ -201,7 +201,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
   describe('Array of Objects Constraints', () => {
     it('should pass with unique object structures', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays-objects',
           method: 'GET',
@@ -218,7 +218,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject non-unique object structures', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays-objects',
           method: 'GET',
@@ -241,7 +241,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
       cyclicObj2.self = cyclicObj2;
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays-objects',
           method: 'GET',
@@ -261,7 +261,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
       cyclicObj2.self = cyclicObj2;
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/constraints/arrays-objects',
           method: 'GET',
@@ -277,7 +277,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
   describe('Objects & Additional Properties', () => {
     it('should pass when allowed additional fields match schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/objects/additional-schema',
           method: 'GET',
@@ -292,7 +292,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject when additional fields violate their nested schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/objects/additional-schema',
           method: 'GET',
@@ -309,7 +309,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should reject additional fields when additionalProperties is false', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/objects/strict',
           method: 'GET',
@@ -326,7 +326,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should throw an error if validateObject receives a non-object', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/objects/strict',
           method: 'GET',
@@ -340,7 +340,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
   describe('Validation Keywords (const, enum, nullable, writeOnly)', () => {
     it('should throw an error if a writeOnly field is present in response', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/validation/write-only',
           method: 'GET',
@@ -354,7 +354,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should pass if a nullable field is true and received null', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/validation/nullable',
           method: 'GET',
@@ -366,7 +366,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should validate const constraints successfully', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/validation/const',
           method: 'GET',
@@ -393,7 +393,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
       'should reject if $desc',
       async ({ body, error }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/validation/const',
             method: 'GET',
@@ -406,7 +406,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
 
     it('should validate enum constraints successfully', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/validation/enum',
           method: 'GET',
@@ -433,7 +433,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
       'should reject if $desc',
       async ({ body, error }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/validation/enum',
             method: 'GET',
@@ -465,7 +465,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
       'should ignore $desc gracefully',
       async ({ path }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path,
             method: 'GET',
@@ -480,7 +480,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
   describe('BigInt Constraints on String-Based Integers', () => {
     it('should pass if string-based int64 satisfies valid bigint constraints', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/validation/bigint-constraints',
           method: 'GET',
@@ -512,7 +512,7 @@ describe('assertResponseMatchesOpenAPI - Constraints E2E', () => {
       'should reject if string-based int64 violates $desc',
       async ({ value, error }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/validation/bigint-constraints',
             method: 'GET',

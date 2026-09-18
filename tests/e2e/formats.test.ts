@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
+describe('assertResponseMatchesOpenApi - Formats E2E', () => {
   const specPath = 'tests/fixtures/e2e/formats.yaml';
 
   describe('Formats', () => {
@@ -17,7 +17,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
 
     it('should pass with fully valid formats', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/formats',
           method: 'GET',
@@ -94,7 +94,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
       'should reject $desc',
       async ({ field, value, format }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/formats',
             method: 'GET',
@@ -120,7 +120,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
 
     it('should pass with valid extended formats', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/formats-extended',
           method: 'GET',
@@ -132,7 +132,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
 
     it('should pass with int64 as a valid BigInt string exceeding safe JS limits', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/formats-extended',
           method: 'GET',
@@ -144,7 +144,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
 
     it('should validate int64 min/max/multipleOf constraints correctly when string-based', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/formats-extended',
           method: 'GET',
@@ -231,7 +231,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
       'should reject $desc',
       async ({ field, value, expectedError }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path: '/test/formats-extended',
             method: 'GET',
@@ -246,7 +246,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
   describe('Custom Formats Validation', () => {
     it('should pass with custom formats when the custom validator resolves to true', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/formats',
           method: 'GET',
@@ -269,7 +269,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
 
     it('should reject when custom formats validation resolves to false', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/formats',
           method: 'GET',
@@ -338,7 +338,7 @@ describe('assertResponseMatchesOpenAPI - Formats E2E', () => {
       'should validate $desc correctly without type in schema',
       async ({ path, body, error }) => {
         await expect(
-          assertResponseMatchesOpenAPI({
+          assertResponseMatchesOpenApi({
             specPath,
             path,
             method: 'GET',

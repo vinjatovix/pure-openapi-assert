@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', () => {
+describe('assertResponseMatchesOpenApi - Default Responses and Edge Cases E2E', () => {
   const specPath = 'tests/fixtures/e2e/default-responses.yaml';
 
   describe('Default Response Fallback', () => {
     it('should validate 200 response with its specific schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/default',
           method: 'GET',
@@ -19,7 +19,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
 
     it('should fail 200 response if it does not match its specific schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/default',
           method: 'GET',
@@ -31,7 +31,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
 
     it('should fall back to default schema and headers for undocumented status code (e.g. 500)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/default',
           method: 'GET',
@@ -46,7 +46,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
 
     it('should fall back to default schema and reject undocumented status code (e.g. 400) if structure is invalid', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/default',
           method: 'GET',
@@ -60,7 +60,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
   describe('Extreme Header Case-Insensitivity', () => {
     it('should match declared headers in the OpenAPI spec using bizarre, mixed casing in incoming request', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/default',
           method: 'GET',
@@ -75,7 +75,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
 
     it('should trigger required validations even if the input header is strangely capitalized', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath: 'tests/fixtures/e2e/headers.yaml',
           path: '/test/headers',
           method: 'GET',
@@ -92,7 +92,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
   describe('Empty Bodies on 201/202 Responses', () => {
     it('should pass empty/undefined body on 201 status code when no schema is declared', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/empty-success',
           method: 'POST',
@@ -102,7 +102,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
       ).resolves.not.toThrow();
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/empty-success',
           method: 'POST',
@@ -114,7 +114,7 @@ describe('assertResponseMatchesOpenAPI - Default Responses and Edge Cases E2E', 
 
     it('should pass empty/undefined body on 202 status code when no schema is declared', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/empty-success',
           method: 'POST',
