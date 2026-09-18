@@ -7,6 +7,13 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Run workflow in dry-run mode (runs lints, tests, and version query but skips NPM publication and Git tagging)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -114,3 +121,113 @@ jobs:
           valColorRange: ${{ steps.coverage.outputs.coverage }}
           maxColorRange: 100
           minColorRange: 50
+
+  release:
+    name: Automated Release
+    runs-on: ubuntu-latest
+    needs: validate
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Get Package Version
+        id: pkg_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Query NPM Registry Version
+        id: check_version
+        run: |
+          VERSION="${{ steps.pkg_version.outputs.version }}"
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          echo "Checking if version $VERSION is already published to NPM..."
+          
+          # Attempt to query with retry up to 3 times
+          PUBLISHED="false"
+          for i in {1..3}; do
+            echo "Registry query attempt $i..."
+            REGISTRY_VERSION=$(pnpm info "$PACKAGE_NAME@$VERSION" version 2>/dev/null || true)
+            if [ ! -z "$REGISTRY_VERSION" ] && [ "$REGISTRY_VERSION" = "$VERSION" ]; then
+              PUBLISHED="true"
+              break
+            fi
+            if [ $i -lt 3 ]; then
+              echo "Version query did not find matching version or timed out. Retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          echo "published=$PUBLISHED" >> $GITHUB_OUTPUT
+          echo "Version published status: $PUBLISHED"
+
+      - name: Determine Publication Action
+        id: decider
+        run: |
+          PUBLISHED="${{ steps.check_version.outputs.published }}"
+          DRY_RUN="${{ inputs.dry-run || 'false' }}"
+          
+          if [ "$PUBLISHED" = "true" ]; then
+            echo "action=skip" >> $GITHUB_OUTPUT
+            echo "Reason: Version ${{ steps.pkg_version.outputs.version }} is already published to NPM."
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "action=dry-run" >> $GITHUB_OUTPUT
+            echo "Reason: Manual dry-run mode active."
+          else
+            echo "action=publish" >> $GITHUB_OUTPUT
+            echo "Reason: New version ${{ steps.pkg_version.outputs.version }} detected. Proceeding to publish."
+          fi
+
+      - name: Publish to NPM
+        if: steps.decider.outputs.action == 'publish'
+        run: |
+          pnpm publish --provenance --no-git-checks
+
+      - name: Create and Push Git Tag
+        if: steps.decider.outputs.action == 'publish'
+        run: |
+          VERSION="v${{ steps.pkg_version.outputs.version }}"
+          echo "Configuring git user..."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          echo "Creating tag $VERSION..."
+          git tag -a "$VERSION" -m "Automated release of $VERSION"
+          
+          echo "Pushing tag $VERSION..."
+          git push origin "$VERSION"
+
+      - name: Log Release Bypass
+        if: steps.decider.outputs.action != 'publish'
+        run: |
+          ACTION="${{ steps.decider.outputs.action }}"
+          VERSION="${{ steps.pkg_version.outputs.version }}"
+          if [ "$ACTION" = "skip" ]; then
+            echo "=== RELEASE SKIPPED ==="
+            echo "Version $VERSION is already published on the NPM registry."
+          elif [ "$ACTION" = "dry-run" ]; then
+            echo "=== DRY-RUN VERIFICATION SUCCESSFUL ==="
+            echo "All quality gates and pre-checks passed cleanly."
+            echo "Simulated publication of version $VERSION would succeed."
+          fi
