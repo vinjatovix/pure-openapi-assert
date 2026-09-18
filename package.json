@@ -1,7 +1,11 @@
 {
   "name": "pure-openapi-assert",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-dependency-heavy OpenAPI response assertion library for modern testing",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vinjatovix/pure-openapi-assert.git"
+  },
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -35,6 +39,9 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
