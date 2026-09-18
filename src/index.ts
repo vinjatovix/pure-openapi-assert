@@ -1,7 +1,11 @@
 export {
-  assertResponseMatchesOpenAPI,
-  type OpenAPIValidatorInput
-} from './assertions/assertResponseMatchesOpenAPI.js';
+  assertResponseMatchesOpenApi,
+  assertResponse,
+  type OpenAPIValidatorInput,
+  type PolymorphicResponse,
+  type FetchLikeResponse,
+  type NodeLikeResponse
+} from './assertions/assertResponseMatchesOpenApi.js';
 export {
   ValidationContext,
   type ValidationIssue,

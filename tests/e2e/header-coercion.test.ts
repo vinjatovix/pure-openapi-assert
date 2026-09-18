@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', () => {
+describe('assertResponseMatchesOpenApi - Header Coercion and Precision (E2E)', () => {
   const specPath = 'tests/fixtures/header-coercion-openapi.yaml';
 
   it('should normalize and concatenate duplicate headers containing arrays', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -22,7 +22,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should ignore coercion and pass non-string/non-boolean values in coerceBoolean', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -37,7 +37,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should ignore coercion and pass non-string/non-array values in coerceArray', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -52,7 +52,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should return the original value when an array is passed to a non-array schema', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -67,7 +67,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should ignore mediaTypeObjects that lack a schema', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -82,7 +82,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should extract first element if array is passed to mediaTypeObject JSON validation', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -97,7 +97,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should ignore header validations when neither schema nor content is present', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-headers',
         method: 'GET',
@@ -112,7 +112,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should pass for 204 No Content with inferred Content-Type response header', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-204',
         method: 'POST',
@@ -127,7 +127,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should coerce large numeric header without precision loss into BigInt', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-large-header',
         method: 'GET',
@@ -142,7 +142,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail with large numeric header violating minimum constraint', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-large-header-fail',
         method: 'GET',
@@ -159,7 +159,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail validation when a large float header is evaluated against an integer schema', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-large-float-header',
         method: 'GET',
@@ -174,7 +174,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail validation when a non-integer float near 1.0 is evaluated against an integer schema', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-precision-coercion',
         method: 'GET',
@@ -189,7 +189,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail validation when an unsafe float is evaluated against a number schema to prevent silent loss of precision', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-precision-coercion',
         method: 'GET',
@@ -204,7 +204,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail validation when an unsafe integer is passed in floating-point notation (.0) to prevent precision rounding', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-precision-coercion',
         method: 'GET',
@@ -219,7 +219,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail validation when an unsafe integer is passed in scientific notation (e0) to prevent precision rounding', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-precision-coercion',
         method: 'GET',
@@ -234,7 +234,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should prevent infinite loops inside header coercion for circular array schemas', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-circular-array-header',
         method: 'GET',
@@ -249,7 +249,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should correctly resolve $ref item schemas in arrays during coercion', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-array-ref',
         method: 'GET',
@@ -262,7 +262,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
     ).resolves.not.toThrow();
 
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-array-ref',
         method: 'GET',
@@ -277,7 +277,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should preserve spec context during composed dry-run coercion to resolve discriminators', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-dry-run-ref-discriminator',
         method: 'GET',
@@ -292,7 +292,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should successfully detect cycles inside composed schemas without infinite loops', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-circular-composed-header',
         method: 'GET',
@@ -307,7 +307,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should correctly coerce and validate int64 headers with enum/const limits', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-int64-enum-header',
         method: 'GET',
@@ -322,7 +322,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should successfully coerce header values defined using composed schemas (oneOf, anyOf, allOf)', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-composed-header',
         method: 'GET',
@@ -337,7 +337,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should use dry-run validation in composed coercion to avoid wrong branch type mismatches', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-dry-run-fallback-to-string',
         method: 'GET',
@@ -352,7 +352,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should use dry-run validation in composed coercion to select the coercible branch that passes', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-dry-run-coerce-to-integer',
         method: 'GET',
@@ -367,7 +367,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should cumulatively coerce allOf header schemas sequentially', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-all-of-header',
         method: 'GET',
@@ -382,7 +382,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should parse content-backed JSON headers containing large integers losslessly without precision loss', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-content-large-integer',
         method: 'GET',
@@ -397,7 +397,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail format checks for positive overflow of int64 headers', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-int64-overflow',
         method: 'GET',
@@ -414,7 +414,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should fail format checks for negative underflow of int64 headers', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-int64-underflow',
         method: 'GET',
@@ -431,7 +431,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should handle mixed allOf and oneOf coercion correctly', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-mixed-allof-oneof',
         method: 'GET',
@@ -446,7 +446,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should parse 16-digit safe integers as numbers, not bigints', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-json-float',
         method: 'GET',
@@ -461,7 +461,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
   it('should correctly unwrap array for JSON content-backed headers with a strict schema', async () => {
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-json-object',
         method: 'GET',
@@ -474,7 +474,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
     ).resolves.not.toThrow();
 
     await expect(
-      assertResponseMatchesOpenAPI({
+      assertResponseMatchesOpenApi({
         specPath,
         path: '/test-json-object',
         method: 'GET',
@@ -510,7 +510,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
     it.each(csvTestCases)('$name', async ({ header }) => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-csv-edge',
           method: 'GET',
@@ -646,7 +646,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
       }
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path,
           method: 'GET',
@@ -661,7 +661,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
     it('rejects invalid zero-prefixed integers', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-json-number',
           method: 'GET',
@@ -676,7 +676,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
     it('rejects unsafe fractional float tokens under an integer schema to prevent silent rounding', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-json-number',
           method: 'GET',
@@ -691,7 +691,7 @@ describe('assertResponseMatchesOpenAPI - Header Coercion and Precision (E2E)', (
 
     it('rejects decimal values near 1.0 (e.g. 1.0000000000000001) under a JSON-backed integer schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-json-number',
           method: 'GET',

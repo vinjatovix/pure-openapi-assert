@@ -7,9 +7,9 @@ import {
   beforeEach,
   afterEach
 } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () => {
+describe('assertResponseMatchesOpenApi - Content-Type and Deprecations E2E', () => {
   const specPath = 'tests/fixtures/e2e/content-type.yaml';
   let warnSpy: MockInstance;
 
@@ -31,7 +31,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
   describe('Content-Type Strict Matching', () => {
     it('should throw an error if contentType is not declared', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/xml',
           method: 'GET',
@@ -46,7 +46,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should support wildcard media types like image/*', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/wildcard',
           method: 'GET',
@@ -59,7 +59,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
       );
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/wildcard',
           method: 'GET',
@@ -72,7 +72,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should support wildcard media types like application/*+json', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/wildcard',
           method: 'GET',
@@ -87,7 +87,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
   describe('Non-JSON Short-circuit Validation', () => {
     it('should validate text content type as string and skip structural schema checks', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/xml',
           method: 'GET',
@@ -98,7 +98,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
       ).resolves.not.toThrow();
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/xml',
           method: 'GET',
@@ -113,7 +113,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should validate binary content type as Buffer and skip structural schema checks', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/binary',
           method: 'GET',
@@ -124,7 +124,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
       ).resolves.not.toThrow();
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/content-type/binary',
           method: 'GET',
@@ -140,7 +140,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
   describe('Deprecation Warnings Support', () => {
     it('should warn when a deprecated endpoint is consumed', async () => {
-      await assertResponseMatchesOpenAPI({
+      await assertResponseMatchesOpenApi({
         specPath,
         path: '/test/deprecated-route',
         method: 'GET',
@@ -157,7 +157,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
     });
 
     it('should warn when a schema property contains deprecated: true', async () => {
-      await assertResponseMatchesOpenAPI({
+      await assertResponseMatchesOpenApi({
         specPath,
         path: '/test/deprecated-property',
         method: 'GET',
@@ -174,7 +174,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
     });
 
     it('should warn when a deprecated 204 endpoint is consumed with an empty body', async () => {
-      await assertResponseMatchesOpenAPI({
+      await assertResponseMatchesOpenApi({
         specPath,
         path: '/test/deprecated-no-content',
         method: 'GET',
@@ -192,7 +192,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should throw an error when response content is an empty object', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/empty-content-map',
           method: 'GET',
@@ -210,7 +210,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should pass if 204 status has an undefined body', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: realPath,
           method: 'GET',
@@ -222,7 +222,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should pass if 204 status has a null body', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: realPath,
           method: 'GET',
@@ -234,7 +234,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should pass if 204 status has an empty object body', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: realPath,
           method: 'GET',
@@ -246,7 +246,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should throw if 204 status has a non-empty body (proves fast-path error prioritization without loading spec)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath: 'any-non-existent-spec.yaml',
           path: '/any-path',
           method: 'GET',
@@ -258,7 +258,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should throw if 204 status has a non-empty string body (proves fast-path error prioritization without loading spec)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath: 'any-non-existent-spec.yaml',
           path: '/any-path',
           method: 'GET',
@@ -270,7 +270,7 @@ describe('assertResponseMatchesOpenAPI - Content-Type and Deprecations E2E', () 
 
     it('should throw if 204 status has an empty body but the path does not exist in the spec (proves BDD routing validation)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/non-existent-route-path',
           method: 'GET',

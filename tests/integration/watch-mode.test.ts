@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, afterEach } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 import { stateManager } from '../../src/core/StateManager.js';
 import { DocumentBuilder } from '../helpers/DocumentBuilder.js';
 import { SchemaBuilder } from '../helpers/SchemaBuilder.js';
@@ -58,7 +58,7 @@ describe('Watch Mode Cache Invalidation Integration', () => {
       body: { value: 15 }
     };
 
-    await expect(assertResponseMatchesOpenAPI(options)).resolves.not.toThrow();
+    await expect(assertResponseMatchesOpenApi(options)).resolves.not.toThrow();
   });
 
   it('should reject payload when specification is updated with stricter validation constraints', async () => {
@@ -72,12 +72,12 @@ describe('Watch Mode Cache Invalidation Integration', () => {
       status: 200,
       body: { value: 15 }
     };
-    await assertResponseMatchesOpenAPI(options);
+    await assertResponseMatchesOpenApi(options);
 
     createSpec(20);
     const updatedTime = new Date(Date.now() + 2000);
     fs.utimesSync(tempSpecPath, updatedTime, updatedTime);
 
-    await expect(assertResponseMatchesOpenAPI(options)).rejects.toThrow();
+    await expect(assertResponseMatchesOpenApi(options)).rejects.toThrow();
   });
 });

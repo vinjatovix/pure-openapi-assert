@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI', () => {
+describe('assertResponseMatchesOpenApi', () => {
   const specPath = 'tests/fixtures/e2e/polymorphism.yaml';
 
   describe('Polymorphism anyOf Tree Reporting', () => {
     it('should pass if matching at least one valid anyOf branch', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/anyof',
           method: 'GET',
@@ -17,7 +17,7 @@ describe('assertResponseMatchesOpenAPI', () => {
       ).resolves.not.toThrow();
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/anyof',
           method: 'GET',
@@ -37,7 +37,7 @@ describe('assertResponseMatchesOpenAPI', () => {
       };
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/anyof',
           method: 'GET',
@@ -59,7 +59,7 @@ describe('assertResponseMatchesOpenAPI', () => {
   describe('Polymorphism oneOf Constraints', () => {
     it('should pass if matching exactly one oneOf branch', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/oneof',
           method: 'GET',
@@ -71,7 +71,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should reject if matching more than one oneOf branch', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/oneof',
           method: 'GET',
@@ -85,7 +85,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should reject if matching zero oneOf branches', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/oneof',
           method: 'GET',
@@ -101,7 +101,7 @@ describe('assertResponseMatchesOpenAPI', () => {
   describe('Polymorphism allOf Constraints', () => {
     it('should pass if matching all schemas in allOf', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/allof',
           method: 'GET',
@@ -118,7 +118,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should reject if any schema in allOf is violated', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/allof',
           method: 'GET',
@@ -136,7 +136,7 @@ describe('assertResponseMatchesOpenAPI', () => {
   describe('Polymorphism oneOf with Discriminator Mapping', () => {
     it('should pass if matching the exact dog schema via discriminator', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator',
           method: 'POST',
@@ -148,7 +148,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should pass if matching the exact cat schema via discriminator', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator',
           method: 'POST',
@@ -160,7 +160,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should report the specific error of the selected branch (Dog) if validation fails', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator',
           method: 'POST',
@@ -174,7 +174,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should report the specific error of the selected branch (Cat) if validation fails', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator',
           method: 'POST',
@@ -188,7 +188,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should reject with a clear error if the discriminator property value is invalid/unmapped', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator',
           method: 'POST',
@@ -202,7 +202,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should fail if the resolved branch constraints are violated (polymorphic const check)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator',
           method: 'POST',
@@ -218,7 +218,7 @@ describe('assertResponseMatchesOpenAPI', () => {
   describe('Polymorphism anyOf with Discriminator Mapping (/test/polymorphism/discriminator-anyof)', () => {
     it('should pass if matching the exact car schema via discriminator', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator-anyof',
           method: 'POST',
@@ -230,7 +230,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should report the specific error of the selected branch (Truck) if validation fails', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator-anyof',
           method: 'POST',
@@ -246,7 +246,7 @@ describe('assertResponseMatchesOpenAPI', () => {
   describe('Polymorphism oneOf with Implicit Discriminator Name (/test/polymorphism/discriminator-no-mapping)', () => {
     it('should pass if matching the implicit Circle schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator-no-mapping',
           method: 'POST',
@@ -258,7 +258,7 @@ describe('assertResponseMatchesOpenAPI', () => {
 
     it('should report specific error of the implicit Square schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/discriminator-no-mapping',
           method: 'POST',
@@ -274,7 +274,7 @@ describe('assertResponseMatchesOpenAPI', () => {
   describe('Polymorphism with Nested References', () => {
     it('should pass and resolve reference schemas inside polymorphism ref-object successfully', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/ref-object',
           method: 'GET',
@@ -290,7 +290,7 @@ describe('assertResponseMatchesOpenAPI', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test/polymorphism/deprecated-anyof',
           method: 'GET',

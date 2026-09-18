@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { assertResponseMatchesOpenAPI } from '../../src/index.js';
+import { assertResponseMatchesOpenApi } from '../../src/index.js';
 
-describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
+describe('assertResponseMatchesOpenApi - "not" keyword validation E2E', () => {
   describe('Type Negation (/test-type)', () => {
     const specPath = 'tests/fixtures/e2e/not-keyword-type-negation.yaml';
 
     it('should reject when the payload matches the prohibited type schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-type',
           method: 'GET',
@@ -22,7 +22,7 @@ describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
 
     it('should accept when the payload does not match the prohibited type schema', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-type',
           method: 'GET',
@@ -41,7 +41,7 @@ describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
 
     it('should reject when the numeric value matches the prohibited minimum limit', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-complex',
           method: 'GET',
@@ -58,7 +58,7 @@ describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
 
     it('should accept when the numeric value is strictly negative (does not match minimum: 0)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-complex',
           method: 'GET',
@@ -75,7 +75,7 @@ describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
 
     it('should reject when the object has the prohibited required secret field', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-complex',
           method: 'GET',
@@ -92,7 +92,7 @@ describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
 
     it('should reject when double negation is violated (not a string)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-complex',
           method: 'GET',
@@ -109,7 +109,7 @@ describe('assertResponseMatchesOpenAPI - "not" keyword validation E2E', () => {
 
     it('should accept when double negation is satisfied (is a string)', async () => {
       await expect(
-        assertResponseMatchesOpenAPI({
+        assertResponseMatchesOpenApi({
           specPath,
           path: '/test-complex',
           method: 'GET',

@@ -6,7 +6,7 @@ State-of-the-art, ultra-lightweight, and high-performance OpenAPI 3.0 response c
 [![CI Status](https://github.com/vinjatovix/pure-openapi-assert/actions/workflows/ci.yml/badge.svg)](https://github.com/vinjatovix/pure-openapi-assert/actions)
 [![Test Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/vinjatovix/feac8a8435ec9adc322d155a51ac5079/raw/coverage.json)](https://github.com/vinjatovix/pure-openapi-assert)
 [![DeepScan grade](https://deepscan.io/api/teams/30684/projects/32433/branches/1073555/badge/grade.svg)](https://deepscan.io/dashboard#view=project&tid=30684&pid=32433&bid=1073555)
-[![License](https://img.shields.io/npm/l/pure-openapi-assert.svg)](https://github.com/vinjatovix/pure-openapi-assert/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/vinjatovix/pure-openapi-assert.svg)](https://github.com/vinjatovix/pure-openapi-assert/blob/main/LICENSE)
 
 ---
 
@@ -22,6 +22,27 @@ Most traditional testing setups rely on AJV or other JSON Schema engines to vali
 - **Polymorphism Support:** Built-in high-performance evaluation of polymorphic compositions (`oneOf`, `anyOf`, `allOf`) with explicit support for `discriminator` routing to avoid evaluating irrelevant schema branches.
 - **Negation Support (`not` Keyword):** Full compliance with the OpenAPI 3.0 `not` directive. Payloads matching schemas specified under a `not` block are strictly rejected, while non-matching payloads are accepted cleanly with zero error leakages or context pollution.
 - **Comprehensive Developer Experience (DX):** Validation failures are compiled into structured, highly readable nested property paths (e.g. `[body.profile.address.zipCode]`) for immediate root-cause diagnosis.
+
+### Feature Comparison
+
+| Feature / Pain Point | AJV + Custom JSON-Schema Wrappers | express-openapi-validator | `pure-openapi-assert` (Our Library) |
+|:---|:---|:---|:---|
+| **Dependencies** | Heavy (AJV, ajv-formats, etc.) | Bound to Express, pulls heavy HTTP middleware | **Ultra-lightweight** (minimal dependencies, in-memory AST router) |
+| **Performance** | High, but heavy compilation/init times | Slowed by middleware layers & express stacks | **Hot runs <3ms** (via `WeakMap` and bounded `FIFOCache`) |
+| **Coupling** | Decoupled, but requires complex glue code | Highly coupled to Express.js (unusable in Koa, Fastify, Edge) | **100% decoupling** (pure in-memory AST match over raw objects) |
+| **HTTP Coercion** | Bypassed or manual (often fails on headers/query) | Express-specific body-parsing coercion | **Built-in strict coercion boundaries** for headers/query |
+| **Floating-Point Precision**| Suffers from standard V8 precision loss on large integers | Suffers from standard precision loss on large integers | **Deterministic custom Lossless BigInt Parsing** |
+| **Polymorphism** | Complex schema configuration | Hard to trace dynamic discriminator paths | **Explicit delegation with dispatch tables** |
+
+---
+
+## 🛡️ Design Philosophy: Zero-Bypass Type Safety
+
+The structural integrity of `pure-openapi-assert` is governed by our **Zero-Bypass** engineering standard:
+
+1.  **No Compilation Bypasses (`as any` / `as unknown`):** We ban loose type assertions. TypeScript soundness guarantees that validation contracts map cleanly at compile-time and runtime.
+2.  **No Non-Null Assertions (`!`):** Every value that can be optional, `null`, or `undefined` is checked explicitly using type-guards or fallback defaults.
+3.  **Strict Coercion Boundaries:** Wire transport values (like query parameters and headers) always arrive as strings. The library coerces them according to the OpenAPI schema into real primitive types (like `integer`, `boolean`, `number`) before checking constraints, preventing silent bypasses.
 
 ---
 
@@ -55,224 +76,66 @@ yarn add -D pure-openapi-assert
 
 ## ⚡ Quickstart
 
-Validate HTTP responses directly against your OpenAPI 3.0 contract:
+Validate HTTP responses directly against your OpenAPI 3.0 contract in a single line. Pass your `fetch`, `axios`, or `supertest` response directly to the `response` property—the library safely auto-extracts the status, headers, and body for you.
 
 ```typescript
-import { assertResponseMatchesOpenAPI } from 'pure-openapi-assert';
+import { assertResponseMatchesOpenApi } from 'pure-openapi-assert';
 
 async function testMyAPI() {
-  const actualResponse = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    name: 'Jane Doe',
-    email: 'jane.doe@example.com'
-  };
+  // 1. Execute your request using Fetch, Axios, or Supertest
+  const response = await fetch('https://api.example.com/users/123');
 
-  await assertResponseMatchesOpenAPI({
+  // 2. Assert against your OpenAPI contract instantly
+  await assertResponseMatchesOpenApi({
     specPath: 'docs/openapi.yaml', // Path to your local OpenAPI spec file
-    path: '/users/{id}', // The route pattern as defined in the spec
+    path: '/users/{id}',           // The route pattern as defined in the spec
     method: 'GET',
-    status: 200,
-    body: actualResponse
+    response                       // Auto-extracts status, headers, and body!
   });
+
+  // 3. Do your business assertions! 
+  // (We automatically clone Fetch streams, so response.json() is still fully available to you)
+  const data = await response.json();
+  expect(data.name).toBe('Jane Doe');
 }
 ```
 
----
-
-## 🛠️ Advanced Integrations
-
-### 1. Native Integration with Vitest (`expect.extend`)
-
-To make your test assertions more idiomatic, you can extend Vitest's `expect` matchers:
-
-```typescript
-// vitest.setup.ts
-import { expect } from 'vitest';
-import {
-  assertResponseMatchesOpenAPI,
-  type OpenAPIValidatorInput
-} from 'pure-openapi-assert';
-
-expect.extend({
-  async toMatchOpenAPI(
-    received: Omit<OpenAPIValidatorInput, 'specPath'>,
-    specPath: string
-  ) {
-    try {
-      await assertResponseMatchesOpenAPI({
-        ...received,
-        specPath
-      });
-      return {
-        pass: true,
-        message: () => 'Expected response not to match OpenAPI contract'
-      };
-    } catch (error: any) {
-      return {
-        pass: false,
-        message: () => error.message
-      };
-    }
-  }
-});
-```
-
-Declare types for the custom matcher in a `d.ts` file:
-
-```typescript
-// types/vitest.d.ts
-import 'vitest';
-
-interface CustomMatchers<R = unknown> {
-  toMatchOpenAPI(specPath: string): Promise<R>;
-}
-
-declare module 'vitest' {
-  interface Assertion<T = any> extends CustomMatchers<T> {}
-  interface AsymmetricMatchersContaining extends CustomMatchers {}
-}
-```
-
-Use the custom matcher in your tests:
-
-```typescript
-import { describe, it, expect } from 'vitest';
-
-describe('Users API', () => {
-  it('should match the OpenAPI specification', async () => {
-    const apiResponse = {
-      status: 200,
-      contentType: 'application/json',
-      body: {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        email: 'user@domain.com'
-      }
-    };
-
-    await expect({
-      path: '/users/{id}',
-      method: 'GET',
-      status: apiResponse.status,
-      body: apiResponse.body,
-      contentType: apiResponse.contentType
-    }).toMatchOpenAPI('docs/openapi.yaml');
-  });
-});
-```
+> ⚠️ **Fetch Stream Consumption (Crucial Edge Case)**: Native Fetch response bodies can only be consumed once.
+> 
+> - **Path A: Assert First (Recommended)**: Pass the `response` object directly. We automatically clone it internally, keeping the original stream untouched so you can still safely call `await response.json()` in your test afterwards.
+> - **Path B: Read Body First**: If you already consumed the stream (e.g. `const data = await response.json()`) *before* passing the response to the validator, the stream is spent. In this case, simply use the **Explicit Mode** to pass the pre-parsed body directly. You can optionally also pass the `headers` (which we will automatically normalize) and `contentType`:
+> 
+> ```typescript
+> const response = await fetch('https://api.example.com/users/123');
+> const data = await response.json(); // <-- Stream is now consumed
+> 
+> await assertResponseMatchesOpenApi({
+>   specPath: 'docs/openapi.yaml',
+>   path: '/users/{id}',
+>   method: 'GET',
+>   status: response.status,
+>   body: data,                    // <-- Explicitly pass the pre-parsed body!
+>   headers: response.headers,     // <-- Optional: Pass fetch headers directly (we normalize them)
+>   contentType: 'application/json' // <-- Optional: Explicit content type override
+> });
+> ```
 
 ---
 
-### 2. Integration with Supertest & Jest
+## 📖 Complete Documentation & BDD Adoption Manual
 
-Integrate seamlessly into End-to-End API test suites utilizing Jest and `supertest`:
+To unlock the full potential of `pure-openapi-assert`, explore our comprehensive **Adoption Manual**. It serves as the single source of truth (SSOT) for all technical integrations and advanced configurations:
 
-```typescript
-import request from 'supertest';
-import app from '../src/app'; // Your Express application
-import { assertResponseMatchesOpenAPI } from 'pure-openapi-assert';
+👉 **[pure-openapi-assert Adoption Manual & BDD Guide](./docs/adoption-manual.md)**
 
-describe('GET /items', () => {
-  it('should return valid JSON list of items', async () => {
-    const response = await request(app).get('/items').expect(200);
-
-    // Validate the actual network response against the OpenAPI document
-    await expect(
-      assertResponseMatchesOpenAPI({
-        specPath: 'openapi.yaml',
-        path: '/items',
-        method: 'GET',
-        status: response.status,
-        body: response.body,
-        contentType: response.headers['content-type']
-      })
-    ).resolves.toBeUndefined();
-  });
-});
-```
-
----
-
-## 🎨 Custom Format Injection
-
-`pure-openapi-assert` validates standard OpenAPI 3.0 formats (such as `uuid`, `email`, `date`, `date-time`, `ipv4`, `ipv6`, `hostname`, `uri`, `byte`, `int32`, `int64`, `float`, and `double`) out of the box.
-
-If your spec defines custom formats, you can inject validation predicates programmatically:
-
-```typescript
-await assertResponseMatchesOpenAPI({
-  specPath: 'openapi.yaml',
-  path: '/users',
-  method: 'POST',
-  status: 201,
-  body: {
-    username: 'john_doe',
-    fiscalCode: 'ABCDEF12G34H567I' // Custom Italian fiscal code format
-  },
-  customFormats: {
-    // Key matches the format name in the YAML/JSON spec
-    'fiscal-code': (val: string) =>
-      /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/.test(val)
-  }
-});
-```
-
----
-
-## ⚠️ Non-JSON Content Types & XML Limitations
-
-### Opaque Content-Type Fail-Safe
-
-`pure-openapi-assert` enforces robust API validation for both JSON and non-JSON media types:
-
-- **JSON Media Types (`application/json`, `application/*+json`):** Evaluated deeply down to the individual keys, formats, and structural restrictions.
-- **Text-based Media Types (`text/html`, `text/plain`, `text/xml`, etc.):** Validated opaquely to ensure that the response payload is a native JavaScript `string`.
-- **Binary / File Media Types (`application/pdf`, `image/png`, etc.):** Validated opaquely to ensure the payload is a valid Node.js `Buffer`.
-
-### XML Schema Deep Validation Workaround
-
-Due to the stateless and zero-dependency nature of the library, the core engine does not bundle a heavy XML parser. If your API endpoint serves deep XML structures and you want to validate them structurally against your OpenAPI contracts:
-
-1.  Use a fast, lightweight library (like `fast-xml-parser`) to deserialize the XML response into a plain JavaScript Object.
-2.  Pass the parsed object into the assertion function.
-3.  **Ensure your OpenAPI specification also declares `application/json` (with the identical schema) for that endpoint.** Since the router strictly matches requested media types against the specification, forcing `contentType: 'application/json'` on an endpoint that _only_ declares XML in the contract will trigger a schema routing error.
-4.  Override the `contentType` parameter to `'application/json'` in the assertion call to trigger deep structural schema validation.
-
-```typescript
-import { XMLParser } from 'fast-xml-parser';
-import { assertResponseMatchesOpenAPI } from 'pure-openapi-assert';
-
-// 1. Receive XML from your server
-const xmlResponse = `<user><id>123</id><email>xml@domain.com</email></user>`;
-
-// 2. Parse into a JS Object
-const parser = new XMLParser();
-const jsObject = parser.parse(xmlResponse);
-
-// 3. Assert deep schemas with application/json override
-// (Requires both application/xml and application/json to be declared for this route in openapi.yaml)
-await assertResponseMatchesOpenAPI({
-  specPath: 'openapi.yaml',
-  path: '/user',
-  method: 'GET',
-  status: 200,
-  body: jsObject,
-  contentType: 'application/json' // Forces deep validation on the parsed structure
-});
-```
-
----
-
-## 🔍 Error Diagnostics Output Example
-
-When a contract violation is detected, `pure-openapi-assert` generates comprehensive diagnostics pinpointing exactly what failed:
-
-```text
-Error: OpenAPI contract violation for GET /test/formats 200.
-Validation errors:
-- [body.uuid] Expected string format 'uuid', received 'invalid-uuid'
-- [body.email] Expected string format 'email', received 'not-an-email'
-- [body.profiles[0].age] Expected integer, received string 'twenty-five'
-```
+### What is covered in the Adoption Manual:
+*   **The AAA (Arrange-Act-Assert) Testing Pattern** — Industry standard practices for contract and BDD testing.
+*   **Vitest Matcher Integration (`expect.extend`)** — Full tutorial to extend expectation runners with 100% strict type autocomplete.
+*   **Supertest & Jest Integration** — Complete end-to-end setups.
+*   **XML Response Workaround** — Deep structural schema validation guidelines for XML APIs.
+*   **Custom Format Predicates Injection** — Extend and register bespoke data constraints dynamically.
+*   **Complete OpenAPI 3.0 Keyword Compatibility Matrix** — Full spec evaluation boundaries.
+*   **Error Diagnostic Formats and Structured Remediation Guides**.
 
 ---
 
