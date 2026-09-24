@@ -1,6 +1,6 @@
 {
   "name": "pure-openapi-assert",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Zero-dependency-heavy OpenAPI response assertion library for modern testing",
   "repository": {
     "type": "git",
