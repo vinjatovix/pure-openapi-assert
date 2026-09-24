@@ -1,5 +1,6 @@
 import { CycleTracker, CYCLE_DETECTED } from '../core/CycleTracker.js';
 import {
+  describeType,
   isPrimitive,
   isSchemaObject,
   isArraySchema,
@@ -121,9 +122,7 @@ function validateArrayItems(args: ValidationArgs<unknown[]>): void {
 export function validateArray(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (!Array.isArray(value)) {
-    ctx.addError(
-      formatExpectedArrayError(value === null ? 'null' : typeof value)
-    );
+    ctx.addError(formatExpectedArrayError(describeType(value)));
     return;
   }
 

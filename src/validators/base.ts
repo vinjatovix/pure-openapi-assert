@@ -7,6 +7,7 @@ import {
   formatTypeError
 } from '../core/errors.js';
 import { type ValidationArgs } from './args.js';
+import { describeType } from '../core/utils.js';
 import { validateStringConstraints } from './string.js';
 import {
   validateNumberConstraints,
@@ -66,7 +67,7 @@ function isValidInt64String(
 }
 
 function getReceivedType(value: unknown): string {
-  return value === null ? 'null' : typeof value;
+  return describeType(value);
 }
 
 export function validateTypeCheck(args: ValidationArgs): boolean {
