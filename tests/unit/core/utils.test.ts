@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeType,
   isJson,
   isPlainObject,
   isPrimitive,
@@ -192,6 +193,27 @@ describe('core/utils', () => {
       const result = safeStringify(undefined);
 
       expect(result).toBe('undefined');
+    });
+  });
+
+  describe('describeType', () => {
+    it.each([
+      { value: null, expected: 'null', name: 'null' },
+      { value: undefined, expected: 'undefined', name: 'undefined' },
+      { value: [], expected: 'array', name: 'empty array' },
+      { value: [1, 2, 3], expected: 'array', name: 'array with elements' },
+      { value: {}, expected: 'object', name: 'empty object' },
+      { value: { a: 1 }, expected: 'object', name: 'plain object' },
+      { value: 'hello', expected: 'string', name: 'string' },
+      { value: 123, expected: 'number', name: 'number' },
+      { value: true, expected: 'boolean', name: 'boolean' },
+      { value: 123n, expected: 'bigint', name: 'bigint' },
+      { value: Symbol('sym'), expected: 'symbol', name: 'symbol' },
+      { value: () => {}, expected: 'function', name: 'function' }
+    ])('should return "$expected" for $name', ({ value, expected }) => {
+      const result = describeType(value);
+
+      expect(result).toBe(expected);
     });
   });
 });

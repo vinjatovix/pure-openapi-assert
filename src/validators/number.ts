@@ -18,6 +18,7 @@ import {
   formatDoubleError
 } from '../core/errors.js';
 import { type ValidationContext } from '../core/ValidationContext.js';
+import { describeType } from '../core/utils.js';
 import { type ValidationArgs } from './args.js';
 
 function extractBigIntVal(value: unknown): bigint | undefined {
@@ -346,7 +347,7 @@ function validateInt32(args: ValidationArgs): void {
       ctx.addError(formatInt32Error(String(value)));
     }
   } else {
-    ctx.addError(formatInt32Error(typeof value));
+    ctx.addError(formatInt32Error(describeType(value)));
   }
 }
 
@@ -391,13 +392,13 @@ function validateInt64(args: ValidationArgs): void {
     return;
   }
 
-  ctx.addError(formatInt64Error(typeof value));
+  ctx.addError(formatInt64Error(describeType(value)));
 }
 
 function validateFloat(args: ValidationArgs): void {
   const { value, ctx } = args;
   if (typeof value !== 'number') {
-    ctx.addError(formatFloatError(typeof value));
+    ctx.addError(formatFloatError(describeType(value)));
     return;
   }
 

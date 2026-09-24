@@ -62,7 +62,7 @@ describe('assertResponseMatchesOpenApi - Header Coercion and Precision (E2E)', (
           'X-String': ['one', 'two']
         }
       })
-    ).rejects.toThrow('Expected string, received object');
+    ).rejects.toThrow('Expected string, received array');
   });
 
   it('should ignore mediaTypeObjects that lack a schema', async () => {

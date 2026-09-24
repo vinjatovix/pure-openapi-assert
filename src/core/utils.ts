@@ -16,6 +16,16 @@ export function isPrimitive(val: unknown): val is string | number | boolean {
   );
 }
 
+export function describeType(val: unknown): string {
+  if (val === null) {
+    return 'null';
+  }
+  if (Array.isArray(val)) {
+    return 'array';
+  }
+  return typeof val;
+}
+
 export function isReferenceObject(
   obj: unknown
 ): obj is OpenAPIV3.ReferenceObject {

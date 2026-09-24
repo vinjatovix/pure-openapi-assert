@@ -88,8 +88,31 @@ describe('validators/object', () => {
         ctx,
         validateShape
       });
-      assertHasValidationError(ctx, 'Expected object, received object');
+      assertHasValidationError(ctx, 'Expected object, received array');
     });
+
+    it.each([
+      { value: [1, 2, 3], expectedType: 'array' },
+      { value: 'not-an-object', expectedType: 'string' },
+      { value: 42, expectedType: 'number' },
+      { value: true, expectedType: 'boolean' },
+      { value: null, expectedType: 'null' }
+    ])(
+      'should report "Expected object, received $expectedType" when value is not a plain object',
+      ({ value, expectedType }) => {
+        const schema = schemaMother.object();
+        validateObject({
+          value,
+          schema,
+          ctx,
+          validateShape
+        });
+        assertHasValidationError(
+          ctx,
+          `Expected object, received ${expectedType}`
+        );
+      }
+    );
 
     it('should fail validation when validating null value in validateObject', () => {
       const schema = schemaMother.object();

@@ -45,6 +45,17 @@ describe('validators/base', () => {
 
       assertHasValidationError(ctx, 'received null');
     });
+
+    it('should format type validation error for array values correctly', () => {
+      validateTypeCheck({
+        value: [1, 2, 3],
+        schema: schemaMother.string(),
+        ctx,
+        validateShape
+      });
+
+      assertHasValidationError(ctx, 'Expected string, received array');
+    });
   });
 
   describe('validateShape base validation requirements', () => {
@@ -126,7 +137,9 @@ describe('validators/base', () => {
     });
 
     it('validateConst should use strict identity checking', () => {
-      const schema = schemaMother.number({ const: 42 } as unknown as OpenAPIV3.SchemaObject);
+      const schema = schemaMother.number({
+        const: 42
+      } as unknown as OpenAPIV3.SchemaObject);
       validateConst({
         value: 42,
         schema,
@@ -138,7 +151,9 @@ describe('validators/base', () => {
     });
 
     it('validateConst should pass for deep strict equal objects that are not strictly identical (T008)', () => {
-      const schema = schemaMother.object({ const: { a: 1 } } as unknown as OpenAPIV3.SchemaObject);
+      const schema = schemaMother.object({
+        const: { a: 1 }
+      } as unknown as OpenAPIV3.SchemaObject);
 
       validateConst({
         value: { a: 1 },
@@ -151,7 +166,9 @@ describe('validators/base', () => {
     });
 
     it('validateConst should support bigint and format error message without throwing', () => {
-      const schema = schemaMother.integer({ const: 42n } as unknown as OpenAPIV3.SchemaObject);
+      const schema = schemaMother.integer({
+        const: 42n
+      } as unknown as OpenAPIV3.SchemaObject);
 
       validateConst({
         value: 43n,
