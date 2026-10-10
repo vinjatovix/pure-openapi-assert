@@ -71,6 +71,17 @@ describe('validators/base', () => {
       assertHasValidationError(ctx, 'Field is not nullable but received null');
     });
 
+    it('should admit null for a typed schema with nullable true', () => {
+      validateShape({
+        value: null,
+        schema: schemaMother.string({ nullable: true }),
+        ctx,
+        validateShape
+      });
+
+      assertValid(ctx);
+    });
+
     it('should throw error when validateShape receives undefined directly', () => {
       const schema = schemaMother.string();
       validateShape({

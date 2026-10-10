@@ -1,0 +1,19 @@
+openapi: 3.0.3
+info:
+  title: Path Item Ref Siblings OpenAPI Mock
+  version: 1.0.0
+paths:
+  /pets:
+    $ref: './paths/pets.yaml'
+    post:
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string

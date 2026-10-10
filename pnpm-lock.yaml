@@ -109,8 +109,11 @@ importers:
 
   .:
     dependencies:
+      '@apidevtools/json-schema-ref-parser':
+        specifier: 15.3.6
+        version: 15.3.6(@types/json-schema@7.0.15)
       '@apidevtools/swagger-parser':
-        specifier: ^13.0.0
+        specifier: 13.0.0
         version: 13.0.0(openapi-types@12.1.3)
       openapi-types:
         specifier: ^12.1.3

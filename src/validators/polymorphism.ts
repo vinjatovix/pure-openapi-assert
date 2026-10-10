@@ -1,6 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import {
   ValidationContext,
+  isResolutionIssue,
   type ValidationIssue
 } from '../core/ValidationContext.js';
 import { isPlainObject } from '../core/utils.js';
@@ -55,6 +56,10 @@ function tryValidateDiscriminator(args: {
   compositionType: 'oneOf' | 'anyOf';
 }): boolean {
   const { validationArgs, schemas, compositionType } = args;
+  // A null admitted by a branch is not a discriminable object: evaluate branches directly.
+  if (validationArgs.value === null) {
+    return false;
+  }
   const result = resolveDiscriminatorSchema({
     validationArgs,
     schemas,
@@ -78,9 +83,7 @@ function validateAllOf(args: ValidationArgs<unknown>): void {
     const subSchema = resolveSchema(sub, ctx);
     if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
-    const resolutionErrors = issues.filter(
-      (i) => i.code === 'UNRESOLVED_REF' || i.code === 'CYCLIC_NOT_SCHEMA'
-    );
+    const resolutionErrors = issues.filter(isResolutionIssue);
     if (resolutionErrors.length > 0) {
       ctx.addIssues(resolutionErrors);
       return;
@@ -109,9 +112,7 @@ function validateAnyOf(args: ValidationArgs<unknown>): void {
     const subSchema = resolveSchema(sub, ctx);
     if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
-    const resolutionErrors = issues.filter(
-      (i) => i.code === 'UNRESOLVED_REF' || i.code === 'CYCLIC_NOT_SCHEMA'
-    );
+    const resolutionErrors = issues.filter(isResolutionIssue);
     if (resolutionErrors.length > 0) {
       ctx.addIssues(resolutionErrors);
       return;
@@ -150,9 +151,7 @@ function validateOneOf(args: ValidationArgs<unknown>): void {
     const subSchema = resolveSchema(sub, ctx);
     if (!subSchema) continue;
     const { issues } = validateSubSchema(subSchema, args);
-    const resolutionErrors = issues.filter(
-      (i) => i.code === 'UNRESOLVED_REF' || i.code === 'CYCLIC_NOT_SCHEMA'
-    );
+    const resolutionErrors = issues.filter(isResolutionIssue);
     if (resolutionErrors.length > 0) {
       ctx.addIssues(resolutionErrors);
       return;

@@ -139,6 +139,34 @@ To unlock the full potential of `pure-openapi-assert`, explore our comprehensive
 
 ---
 
+## 🔁 Migration to 2.0.0 (nullable)
+
+In 2.0.0, `nullable: true` only admits `null` alongside a `type` on the same schema (OpenAPI 3.0.3). These rules apply to every `openapi: 3.0.x` document, including 3.0.0–3.0.2, which left this behavior ambiguous. A `null` no longer passes a schema with `allOf`, `anyOf`, `oneOf` or `$ref` that does not admit it, even if the container has `nullable: true`. Sibling keywords of a `$ref` are ignored.
+
+If your specs start failing after upgrading with `Field is not nullable but received null`, declare nullability on the schema that should accept `null`:
+
+```yaml
+# Before (rejected in 2.0.0): the container is nullable, but Image does not admit null
+image:
+  nullable: true
+  allOf:
+    - $ref: '#/components/schemas/Image'
+
+# After: keep the $ref and add a branch that only admits null
+image:
+  anyOf:
+    - $ref: '#/components/schemas/Image'
+    - type: object
+      nullable: true
+      enum: [null]
+```
+
+The same applies to a `$ref` with a sibling `nullable: true`. For `oneOf` with two branches that admit `null`, leave exactly one branch nullable.
+
+Without `type`, `nullable` has no effect: a schema with only `properties` and `required` accepts `null`, because those keywords only apply to objects. Declare `type` on schemas that must reject `null`. See [CHANGELOG.md](./CHANGELOG.md) for the full migration guide and known limitations.
+
+---
+
 ## 📜 License
 
 Licensed under the **ISC License**. Free for personal, commercial, and enterprise usage. See the [LICENSE](./LICENSE) file for details.

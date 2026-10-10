@@ -1,0 +1,254 @@
+openapi: 3.0.3
+info:
+  title: Nullable Semantics OpenAPI Mock
+  version: 1.0.0
+paths:
+  /test/nullable/allof-object:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: object
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/Image'
+
+  /test/nullable/anyof-null-branch:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    anyOf:
+                      - $ref: '#/components/schemas/Image'
+                      - type: object
+                        nullable: true
+                        enum: [null]
+
+  /test/nullable/allof-no-type:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/Image'
+
+  /test/nullable/string-nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: string
+                    nullable: true
+
+  /test/nullable/string-plain:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: string
+
+  /test/nullable/oneof-two-nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    oneOf:
+                      - type: string
+                        nullable: true
+                      - type: integer
+                        nullable: true
+
+  /test/nullable/oneof-one-nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    oneOf:
+                      - type: string
+                        nullable: true
+                      - type: integer
+
+  /test/nullable/no-constraints:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    nullable: true
+                    description: No type and no composition
+
+  /test/nullable/not-only:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    not:
+                      type: string
+
+  /test/nullable/string-enum:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: string
+                    nullable: true
+                    enum: [a, b]
+
+  /test/nullable/array-nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: array
+                    nullable: true
+                    items:
+                      type: string
+
+  /test/nullable/array-plain:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: array
+                    items:
+                      type: string
+
+  /test/nullable/int64-nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    type: integer
+                    format: int64
+                    nullable: true
+
+  /test/nullable/ref-direct:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    $ref: '#/components/schemas/Image'
+                    nullable: true
+
+  /test/nullable/allof-not-nullable:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image]
+                properties:
+                  image:
+                    nullable: false
+                    allOf:
+                      - $ref: '#/components/schemas/Image'
+
+components:
+  schemas:
+    Image:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string

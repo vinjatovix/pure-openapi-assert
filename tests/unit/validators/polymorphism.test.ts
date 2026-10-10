@@ -25,6 +25,47 @@ describe('validators/polymorphism', () => {
     assertValid(ctx);
   });
 
+  describe('null admission across oneOf and anyOf', () => {
+    it('should reject null when two oneOf branches admit it', () => {
+      const ctx = new ValidationContextBuilder().build();
+      const schema = schemaMother.oneOf([
+        schemaMother.string({ nullable: true }),
+        schemaMother.integer({ nullable: true })
+      ]);
+
+      validateShape({ value: null, schema, ctx, validateShape });
+
+      assertHasValidationError(ctx, 'expected exactly 1');
+    });
+
+    it('should accept null when exactly one oneOf branch admits it', () => {
+      const ctx = new ValidationContextBuilder().build();
+      const schema = schemaMother.oneOf([
+        schemaMother.string({ nullable: true }),
+        schemaMother.integer()
+      ]);
+
+      validateShape({ value: null, schema, ctx, validateShape });
+
+      assertValid(ctx);
+    });
+
+    it('should not apply discriminator resolution to null', () => {
+      const ctx = new ValidationContextBuilder().build();
+      const schema = schemaMother.anyOf(
+        [
+          schemaMother.object({ nullable: true }),
+          schemaMother.object({ required: ['type'] })
+        ],
+        { discriminator: { propertyName: 'type' } }
+      );
+
+      validateShape({ value: null, schema, ctx, validateShape });
+
+      assertValid(ctx);
+    });
+  });
+
   describe('Validation state management across branches', () => {
     it('should ensure the branch root is deleted from visited in validateSubSchema to allow full branch validation', () => {
       const ctx = new ValidationContextBuilder().build();

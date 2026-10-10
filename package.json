@@ -1,6 +1,6 @@
 {
   "name": "pure-openapi-assert",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "Zero-dependency-heavy OpenAPI response assertion library for modern testing",
   "repository": {
     "type": "git",
@@ -54,7 +54,8 @@
     "*.ts": "prettier --write"
   },
   "dependencies": {
-    "@apidevtools/swagger-parser": "^13.0.0",
+    "@apidevtools/json-schema-ref-parser": "15.3.6",
+    "@apidevtools/swagger-parser": "13.0.0",
     "openapi-types": "^12.1.3"
   },
   "devDependencies": {

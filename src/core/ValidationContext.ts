@@ -16,6 +16,10 @@ export interface ValidationIssue {
   branches?: ValidationIssue[][];
 }
 
+export function isResolutionIssue(issue: ValidationIssue): boolean {
+  return issue.code === 'UNRESOLVED_REF' || issue.code === 'CYCLIC_NOT_SCHEMA';
+}
+
 export interface ValidationContextOptions {
   spec?: OpenAPIV3.Document | undefined;
   visited?: Set<object> | undefined;
