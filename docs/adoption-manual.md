@@ -270,7 +270,12 @@ To design reliable specifications, consult the comprehensive keyword support tab
 | `minLength` / `maxLength` | **Supported** | Character length boundary validation for strings. |
 | `pattern` | **Supported** | Performs dynamic regular expression validation. RegExes are compiled and cached in our `FIFOCache`. |
 | `additionalProperties` | **Supported** | Enforces strict property gates. Rejects unknown properties if `additionalProperties: false`. |
-| `nullable` | **Supported** | Correctly evaluates `null` values as valid if `nullable: true` is explicitly declared. |
+| `multipleOf` | **Supported** | Validates numeric divisibility (integers and numbers). |
+| `minItems` / `maxItems` | **Supported** | Array length boundaries. |
+| `uniqueItems` | **Supported** | Rejects duplicate array items when `uniqueItems: true`. |
+| `minProperties` / `maxProperties` | **Supported** | Object property-count boundaries. |
+| `readOnly` / `writeOnly` | **Supported** | Direction-aware (OpenAPI 3.0.3): `writeOnly` is request-only, `readOnly` is response-only. Presence in the wrong direction is rejected, and the `required` interaction takes effect only in the owning direction. See §7. |
+| `nullable` | **Supported** | Admits `null` only when `nullable: true` sits alongside a `type` on the same schema (OpenAPI 3.0.3). Without a `type`, `nullable` has no effect and `null` is decided by `allOf`/`anyOf`/`oneOf`/`not`/`$ref`. See the "Migration to 2.0.0 (nullable)" section of the README and the CHANGELOG. |
 | `deprecated` | **Supported** | Emits a non-blocking warning console log: `[OpenAPI-Assert] ⚠️ Warning: Endpoint is deprecated` in your test suite. |
 
 ---
@@ -279,7 +284,65 @@ To design reliable specifications, consult the comprehensive keyword support tab
 
 Understanding the library's design boundaries will help you prevent configuration issues:
 
-1.  **Response-Only Focus:** The library strictly checks *responses* from your server. It is not optimized or designed for general request body input validation on the client side.
-2.  **Stateless In-Memory Verification:** The engine does not intercept network calls. It is a pure, in-memory validation runner; you must capture your HTTP responses and feed them to the assertion function.
+1.  **Explicit Input, No Network Interception:** The engine does not intercept network calls. It validates both *responses* (via `assertResponseMatchesOpenApi`) and *outgoing requests* (via `assertRequestMatchesOpenApi`, see §7). Either way it is a pure, in-memory runner: you capture the response, or build the request fields, and feed them to the assertion function.
+2.  **Stateless In-Memory Verification:** No persistent state is held between assertions beyond the smart `mtime`-based spec cache; every assertion is an isolated, deterministic evaluation.
 3.  **No Remote Referencing:** To protect against Server-Side Request Forgery (SSRF) and avoid heavy network latencies, the loader **does not fetch dynamic HTTP remote `$ref` references at validation time**. All files must be stored locally on disk.
 4.  **No Native OpenAPI 3.1 Exclusives:** The compiler strictly targets OpenAPI 3.0 schemas. Dynamic type arrays (e.g. `type: ["string", "null"]`) or complex `const` properties are not supported natively unless polyfilled or expressed using standard OpenAPI 3.0 conventions (e.g., `enum: [value]` instead of `const`).
+
+---
+
+## 📤 7. Validating Outgoing Requests (Frontend & Contract Guards)
+
+Besides responses, `pure-openapi-assert` validates **outgoing requests** against the same OpenAPI 3.0 contract through `assertRequestMatchesOpenApi` (alias `assertRequest`). Because the input is **explicit fields** — not a `Request`/`fetch` object — it behaves identically in the browser and in Node, making it ideal for catching malformed payloads in the frontend *before* they hit the network, or as a contract guard inside integration tests.
+
+### Basic Usage
+
+```typescript
+import { assertRequestMatchesOpenApi } from 'pure-openapi-assert';
+
+await assertRequestMatchesOpenApi({
+  specPath: 'docs/openapi.yaml',
+  path: '/users/{id}',                 // route pattern or a concrete path like /users/42
+  method: 'PUT',
+  pathParams: { id: '42' },            // case-sensitive
+  query: { page: '2' },                // case-sensitive; arrays honor style/explode
+  headers: { 'x-tenant-id': 'acme' },  // case-insensitive (HTTP semantics)
+  body: { name: 'Ada', age: 30 },      // object or JSON text (parsed losslessly)
+  contentType: 'application/json'       // optional, defaults to application/json
+});
+// Resolves if valid; otherwise throws with structured, path-prefixed errors.
+```
+
+### What is Validated
+
+| Aspect | Behavior |
+|--------|----------|
+| **Body** | Resolved from the `requestBody` schema matched by `Content-Type` (RFC 7231; `charset`/`boundary` ignored; wildcards supported). JSON text bodies are parsed losslessly; malformed JSON raises a clear parse error. |
+| **Required body** | A required `requestBody` that is absent fails; an optional one that is absent passes. A `Content-Type` not declared by the operation fails intelligibly. |
+| **Parameters** | `path`, `query` and `header` validated for schema, required-ness, and the full OpenAPI 3.0 `style`/`explode` matrix (`form`, `spaceDelimited`, `pipeDelimited`, `deepObject`, `simple`, `label`, `matrix`), with wire-string coercion before constraint checks. |
+| **Name matching** | `header` is case-insensitive (the canonical spec name is kept in the error prefix); `query`/`path` are case-sensitive. |
+| **Undeclared params** | `query`/`header` not declared in the spec are permissive (no error); the body is governed by its own schema (e.g. `additionalProperties`). |
+| **`readOnly`/`writeOnly`** | A `writeOnly` body property is accepted and may be `required`; a `readOnly` body property is rejected if present and is **not** required (even when merged via `allOf`). Opposite of the response direction. |
+
+### Error Prefixes
+
+Request diagnostics mirror the response format but scope the prefix to the request location:
+
+```text
+OpenAPI contract violation for PUT /users/{id}.
+Validation errors:
+- [body.age] Expected integer, received string
+- [query.page] Expected integer, received string
+- [header.X-Tenant-Id] Missing required header parameter: X-Tenant-Id
+- [path.id] Missing required path parameter: id
+```
+
+Assert on these deterministic prefixes (`[body.*]`, `[query.*]`, `[path.*]`, `[header.*]`) rather than on generic words, exactly as recommended for responses in §4.
+
+> **Note — request header prefix.** Request header errors use the singular `[header.<Canonical-Name>]` prefix (the spec's canonical casing is preserved even when the supplied header matched case-insensitively). This differs from the response side, where a *missing* required header surfaces under `[root]` and a *present but invalid* one under `[headers.<name>]` (§4).
+
+### Parity With Response Validation
+
+Request and response validation share the **exact same schema engine**: `$ref` resolution, OpenAPI 3.0.3 `nullable` semantics, composition (`allOf`/`anyOf`/`oneOf`/`not`), string/number formats, `customFormats`, and deterministic lossless parsing. A schema reused by a `requestBody` and by a `response` yields an **identical verdict** (same pass/fail and same error path) for the same payload. OpenAPI 3.1 specs are rejected consistently on both sides.
+
+The **one deliberate exception** is `readOnly`/`writeOnly`, which OpenAPI 3.0.3 defines as directional: a `writeOnly` property (e.g. `password`) belongs in a request and is rejected in a response; a `readOnly` property (e.g. a server-generated `id`) belongs in a response and is rejected in a request. Likewise, a `readOnly` + `required` property is required on the response only, and a `writeOnly` + `required` property on the request only (the `required` interaction is resolved even when the property is merged in via `allOf`). So for a schema shared by both sides, the same payload may legitimately pass one direction and fail the other.

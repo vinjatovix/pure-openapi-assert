@@ -1,6 +1,6 @@
 # pure-openapi-assert
 
-State-of-the-art, ultra-lightweight, and high-performance OpenAPI 3.0 response contract assertion library for modern testing.
+State-of-the-art, ultra-lightweight, and high-performance OpenAPI 3.0 request & response contract assertion library for modern testing.
 
 [![NPM Version](https://img.shields.io/npm/v/pure-openapi-assert.svg)](https://www.npmjs.com/package/pure-openapi-assert)
 [![CI Status](https://github.com/vinjatovix/pure-openapi-assert/actions/workflows/ci.yml/badge.svg)](https://github.com/vinjatovix/pure-openapi-assert/actions)
@@ -119,6 +119,61 @@ async function testMyAPI() {
 >   contentType: 'application/json' // <-- Optional: Explicit content type override
 > });
 > ```
+
+---
+
+## 📤 Validating Requests (Frontend Use)
+
+Besides responses, you can validate **outgoing requests** against the same OpenAPI 3.0
+contract — ideal for catching malformed payloads in the frontend *before* they ever hit the
+network. The input is **explicit fields** (no `Request`/`fetch` object), so it works
+identically in the browser and in Node.
+
+```typescript
+import { assertRequestMatchesOpenApi } from 'pure-openapi-assert';
+
+// Build the request you are about to send, and validate it first:
+await assertRequestMatchesOpenApi({
+  specPath: 'docs/openapi.yaml',
+  path: '/users/{id}',          // route pattern (or a concrete path like /users/42)
+  method: 'PUT',
+  pathParams: { id: '42' },     // case-sensitive
+  query: { page: '2' },         // case-sensitive; arrays honor style/explode
+  headers: { 'x-tenant-id': 'acme' }, // case-insensitive (HTTP semantics)
+  body: { name: 'Ada', age: 30 },     // object or JSON text (parsed losslessly)
+  contentType: 'application/json'      // optional, defaults to application/json
+});
+// Resolves if the request is valid; throws with a structured error otherwise, e.g.:
+//   OpenAPI contract violation for PUT /users/{id}.
+//   Validation errors:
+//   - [body.age] Expected integer, received string
+//   - [query.page] Expected integer, received string
+//   - [header.X-Tenant-Id] Missing required header parameter: X-Tenant-Id
+```
+
+An **alias** `assertRequest` is exported too (mirroring `assertResponse`).
+
+### Parity and differences with response validation
+
+**Same engine, same verdicts.** Request and response validation share the exact same schema
+engine: `$ref` resolution, OpenAPI 3.0.3 `nullable` semantics, composition
+(`allOf`/`anyOf`/`oneOf`/`not`), string/number formats, `customFormats`, and deterministic
+lossless parsing. A schema reused by a `requestBody` and by a `response` yields an **identical
+verdict** for the same payload (same pass/fail and same error path) — **except** for
+`readOnly`/`writeOnly`, which are directional by OpenAPI 3.0.3 (see the row below).
+
+**What is specific to requests:**
+
+| Aspect | Request validation |
+|--------|--------------------|
+| Input | Explicit fields (`body`, `query`, `pathParams`, `headers`, `contentType`) — no `Request`/`fetch` object |
+| Body source | `requestBody` schema matched by `Content-Type` (RFC 7231; `charset`/`boundary` ignored; wildcards supported) |
+| Required body | A required `requestBody` that is absent fails; an optional one that is absent passes |
+| Parameters | `path`, `query` and `header` validated with schema, required-ness, and the full OpenAPI 3.0 `style`/`explode` matrix |
+| Error prefixes | `[body.*]`, `[query.*]`, `[path.*]`, `[header.*]` |
+| Name matching | `header` is case-insensitive (canonical spec name kept in the prefix); `query`/`path` are case-sensitive |
+| Undeclared params | `query`/`header` not declared in the spec are permissive (no error); the body is governed by its own schema (e.g. `additionalProperties`) |
+| `readOnly`/`writeOnly` | Directional (OpenAPI 3.0.3): a `writeOnly` field belongs to the **request** (allowed, and not required on the response); a `readOnly` field belongs to the **response** (rejected if present in a request, and not required on the request — even when merged via `allOf`) |
 
 ---
 

@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: readOnly/writeOnly direction
+  version: '1.0.0'
+paths:
+  # A schema shared by a requestBody and a 200 response: the verdict for the
+  # same payload legitimately DIVERGES because readOnly/writeOnly are directional.
+  /users:
+    post:
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  # readOnly property is required at the container, but supplied via an allOf
+  # branch — exercises merged-property resolution in the required check.
+  /members:
+    post:
+      summary: Create member (allOf)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Member'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, name, password]
+      properties:
+        id:
+          type: string
+          readOnly: true
+        name:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+    Base:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+    Member:
+      type: object
+      required: [id, name]
+      allOf:
+        - $ref: '#/components/schemas/Base'
+      properties:
+        name:
+          type: string

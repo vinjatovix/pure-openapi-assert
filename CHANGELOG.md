@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+
+- **Request validation: `assertRequestMatchesOpenApi` (alias `assertRequest`).** Validates an outgoing request against the same OpenAPI 3.0 contract, from explicit fields (`body`, `query`, `pathParams`, `headers`, `contentType`) — no `Request`/`fetch` object — so it runs identically in the browser and in Node. Ideal for catching malformed payloads in the frontend before they reach the network.
+- **Request body.** Resolved from the `requestBody` schema matched by `Content-Type` (RFC 7231 media-type normalization; `charset`/`boundary` ignored; wildcards supported). A required `requestBody` that is absent fails; an optional one that is absent passes. JSON text bodies are parsed losslessly; malformed JSON reports a clear parse error; a `Content-Type` not declared by the operation fails intelligibly.
+- **Parameters.** `path`, `query` and `header` are validated for schema, required-ness and the full OpenAPI 3.0 `style`/`explode` matrix (`form`, `spaceDelimited`, `pipeDelimited`, `deepObject`, `simple`, `label`, `matrix`), with wire-string coercion before constraint checks. `header` names match case-insensitively (the canonical spec name is kept in the error prefix); `query`/`path` are case-sensitive. Undeclared `query`/`header` params are permissive.
+- **Error prefixes** `[body.*]`, `[query.*]`, `[path.*]` and `[header.*]` for request diagnostics, mirroring the response format.
+- **Direction-aware `readOnly`/`writeOnly` (OpenAPI 3.0.3).** Validation now carries a direction. A `writeOnly` property is rejected only in a **response** (and a `writeOnly` + `required` property is not required there); a `readOnly` property is rejected only in a **request** (and a `readOnly` + `required` property is not required there, including when it is merged in via `allOf`). This makes the common CRUD shape — a server-generated `readOnly: id` and a `writeOnly: password`, both `required` — validate correctly on each side.
+
+### Parity
+
+- Request and response validation share the exact same schema engine: `$ref` resolution, OpenAPI 3.0.3 `nullable` semantics, composition (`allOf`/`anyOf`/`oneOf`/`not`), string/number formats, `customFormats` and deterministic lossless parsing. A schema reused by a `requestBody` and by a `response` yields an identical verdict (same pass/fail and same error path) for the same payload — **except** where `readOnly`/`writeOnly` apply, which are directional by design (see above). OpenAPI 3.1 specs are rejected consistently on both sides.
+
+### Unchanged
+
+- Response validation behavior is unchanged; `assertResponseMatchesOpenApi` and its public types keep their results and signatures.
+
 ## 2.0.0
 
 ### ⚠️ Breaking changes

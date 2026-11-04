@@ -20,8 +20,17 @@ export function isResolutionIssue(issue: ValidationIssue): boolean {
   return issue.code === 'UNRESOLVED_REF' || issue.code === 'CYCLIC_NOT_SCHEMA';
 }
 
+/**
+ * Validation direction. `readOnly` and `writeOnly` are direction-dependent in
+ * OpenAPI 3.0.3: `readOnly` properties belong to responses (and are required on
+ * the response only), `writeOnly` properties belong to requests. Defaults to
+ * `'response'` to preserve historical response-validation behavior.
+ */
+export type ValidationDirection = 'request' | 'response';
+
 export interface ValidationContextOptions {
   spec?: OpenAPIV3.Document | undefined;
+  direction?: ValidationDirection | undefined;
   visited?: Set<object> | undefined;
   activeObjectPolymorphism?:
     WeakMap<object, Set<OpenAPIV3.SchemaObject>> | undefined;
@@ -34,6 +43,7 @@ export interface ValidationContextOptions {
 
 export class ValidationContext {
   public readonly spec?: OpenAPIV3.Document | undefined;
+  public readonly direction: ValidationDirection;
   public readonly issues: ValidationIssue[];
   public readonly visited: Set<object>;
   public currentPath: PathNode | null = null;
@@ -51,6 +61,7 @@ export class ValidationContext {
 
   constructor(options: ValidationContextOptions = {}) {
     this.spec = options.spec;
+    this.direction = options.direction ?? 'response';
     this.visited = options.visited ?? new Set<object>();
     this.activeObjectPolymorphism =
       options.activeObjectPolymorphism ??
@@ -99,6 +110,7 @@ export class ValidationContext {
   }: { resetVisited?: boolean } = {}): ValidationContext {
     const child = new ValidationContext({
       spec: this.spec,
+      direction: this.direction,
       visited: resetVisited ? new Set<object>() : new Set<object>(this.visited),
       activeObjectPolymorphism: this.activeObjectPolymorphism,
       activePrimitivePolymorphism: new Set<OpenAPIV3.SchemaObject>(

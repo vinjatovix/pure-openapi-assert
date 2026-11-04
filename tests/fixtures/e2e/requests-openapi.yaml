@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: Requests Validation Mock
+  version: 1.0.0
+components:
+  schemas:
+    # Schema SHARED by a requestBody (POST /accounts) and a response (GET /accounts/{id})
+    # to prove request/response verdict parity (SC-002).
+    Profile:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        age:
+          type: integer
+        token:
+          type: string
+          format: account-code
+        middleName:
+          type: string
+          nullable: true
+        score:
+          nullable: true
+          oneOf:
+            - type: integer
+            - type: string
+        rank:
+          allOf:
+            - type: integer
+paths:
+  # US1 — body validation
+  /users:
+    post:
+      summary: Create user (required body)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                age:
+                  type: integer
+                nickname:
+                  type: string
+                  deprecated: true
+      responses:
+        '201':
+          description: Created
+    get:
+      summary: List users (optional body, query array styles)
+      parameters:
+        - name: tags
+          in: query
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+      responses:
+        '200':
+          description: OK
+  # US2 — path + query params
+  /users/{id}:
+    get:
+      summary: Get user by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+  # US2 — required header
+  /orders:
+    get:
+      summary: List orders (required tenant header)
+      parameters:
+        - name: X-Tenant-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  # FR-005 — style/explode matrix
+  /search:
+    get:
+      summary: Search with array query styles
+      parameters:
+        - name: tags
+          in: query
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: tagsSpace
+          in: query
+          required: false
+          style: spaceDelimited
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: tagsPipe
+          in: query
+          required: false
+          style: pipeDelimited
+          explode: false
+          schema:
+            type: array
+            items:
+              type: integer
+      responses:
+        '200':
+          description: OK
+  # Template/parameters misalignment edge cases (spec.md:82)
+  /mismatch:
+    get:
+      summary: Declares a path param absent from the template
+      parameters:
+        - name: ghost
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /widgets/{wid}:
+    get:
+      summary: Template token not declared as a parameter
+      responses:
+        '200':
+          description: OK
+  # SC-002 — request/response parity over a shared schema
+  /accounts:
+    post:
+      summary: Create account (shared Profile schema)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Profile'
+      responses:
+        '201':
+          description: Created
+  /accounts/{id}:
+    get:
+      summary: Get account (shared Profile schema in response)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+  # Non-JSON body (text/plain) to exercise the non-JSON parse path
+  /notes:
+    post:
+      summary: Create a plain-text note
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+      responses:
+        '201':
+          description: Created
+  # Deprecated operation (Observability warning)
+  /legacy:
+    post:
+      summary: Deprecated endpoint
+      deprecated: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: OK

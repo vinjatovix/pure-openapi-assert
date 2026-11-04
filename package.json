@@ -1,7 +1,7 @@
 {
   "name": "pure-openapi-assert",
-  "version": "2.0.0",
-  "description": "Zero-dependency-heavy OpenAPI response assertion library for modern testing",
+  "version": "2.1.0",
+  "description": "Zero-dependency-heavy OpenAPI request & response assertion library for modern testing",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vinjatovix/pure-openapi-assert.git"
@@ -30,6 +30,8 @@
   "keywords": [
     "openapi",
     "assert",
+    "request",
+    "response",
     "jest",
     "vitest",
     "testing",

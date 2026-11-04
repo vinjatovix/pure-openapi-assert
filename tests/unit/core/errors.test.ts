@@ -249,6 +249,14 @@ describe('core/errors message formatting', () => {
     );
   });
 
+  it('should format readOnly error strings correctly', () => {
+    const result = errors.formatReadOnlyError();
+
+    expect(result).toBe(
+      'Field is readOnly and must not be present in the request'
+    );
+  });
+
   it('should format required property error strings correctly', () => {
     const result = errors.formatRequiredPropertyError();
 

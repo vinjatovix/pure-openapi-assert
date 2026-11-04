@@ -732,7 +732,7 @@ export async function assertResponseMatchesOpenApi(
     contentType: actualContentType
   });
 
-  const ctx = new ValidationContext({ spec });
+  const ctx = new ValidationContext({ spec, direction: 'response' });
 
   if (operation.deprecated) {
     ctx.addWarning(`Endpoint '${method} ${reqPath}' is deprecated`);

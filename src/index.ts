@@ -7,6 +7,11 @@ export {
   type NodeLikeResponse
 } from './assertions/assertResponseMatchesOpenApi.js';
 export {
+  assertRequestMatchesOpenApi,
+  assertRequest,
+  type OpenAPIRequestValidatorInput
+} from './assertions/assertRequestMatchesOpenApi.js';
+export {
   ValidationContext,
   type ValidationIssue,
   type IssueSeverity
