@@ -80,6 +80,13 @@ paths:
       responses:
         '200':
           description: OK
+  # Static endpoint alongside dynamic route
+  /users/me:
+    get:
+      summary: Current user profile
+      responses:
+        '200':
+          description: OK
   # US2 — path + query params
   /users/{id}:
     get:
@@ -95,6 +102,166 @@ paths:
           required: false
           schema:
             type: integer
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+  # Multi-parameter route
+  /orgs/{orgId}/teams/{teamId}/members/{memberId}:
+    get:
+      summary: Get organization team member
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  # Parameterized routes for percent-encoded URI decoding
+  /items/{itemName}:
+    get:
+      summary: Get item by name
+      parameters:
+        - name: itemName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /tags/{tagName}:
+    get:
+      summary: Get tag by name
+      parameters:
+        - name: tagName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  # Root endpoint for URL without pathname
+  /:
+    get:
+      summary: Root endpoint
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+  # DeepObject query parameters & strict parameter tests
+  /plants:
+    get:
+      summary: List plants with deepObject query filter
+      parameters:
+        - name: filter
+          in: query
+          required: false
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              status:
+                type: string
+              category:
+                type: object
+                properties:
+                  eq:
+                    type: string
+              family:
+                type: string
+              limit:
+                type: integer
+              active:
+                type: boolean
+        - name: items
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: query
+          in: query
+          required: false
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            properties:
+              where:
+                type: object
+                properties:
+                  author:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+      responses:
+        '200':
+          description: OK
+  /api/v1/plants:
+    get:
+      summary: List plants API v1
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: a
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: b
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: filter
+          in: query
+          required: false
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              category:
+                type: string
       responses:
         '200':
           description: OK

@@ -3,7 +3,6 @@ import {
   DEFAULT_CONTENT_TYPE,
   DUMMY_BASE_URL,
   ESCAPED_WILDCARD_REGEX,
-  OPENAPI_PATH_PARAM_REGEX,
   PARAM_STYLE_DEFAULTS,
   REGEX_ESCAPE_CHARS_REGEX,
   TRAILING_SLASHES_REGEX
@@ -13,30 +12,60 @@ import {
   isReferenceObject,
   normalizeMediaType
 } from '../core/utils.js';
-import { stateManager } from '../core/StateManager.js';
+import { type CompiledPathRoute, stateManager } from '../core/StateManager.js';
 
 const TEMPLATE_PARAM_REGEX = /{([^}]+)}/g;
+
+export interface RouteMatchResult {
+  matchedPath: string;
+  extractedPathParams: Record<string, string>;
+  isStatic: boolean;
+}
 
 const escapeRegex = (str: string): string =>
   str.replace(REGEX_ESCAPE_CHARS_REGEX, '\\$&');
 
-const normalizePath = (p: string): string =>
-  p.replace(TRAILING_SLASHES_REGEX, '');
+const normalizePath = (p: string): string => {
+  const stripped = p.replace(TRAILING_SLASHES_REGEX, '');
+  return stripped === '' ? '/' : stripped;
+};
 
-function convertOpenApiPathToRegExp(openApiPath: string): RegExp {
+function safeDecodeURIComponent(val: string): string {
+  try {
+    return decodeURIComponent(val);
+  } catch {
+    return val;
+  }
+}
+
+function compilePathRoute(openApiPath: string): CompiledPathRoute {
   const cacheKey = `path:${openApiPath}`;
   const cached = stateManager.pathRegexCache.get(cacheKey);
   if (cached) {
     return cached;
   }
-  const escapedPath = escapeRegex(openApiPath);
-  const regexPattern = escapedPath.replace(OPENAPI_PATH_PARAM_REGEX, '[^/]+');
-  const rx = new RegExp('^' + regexPattern + '$');
-  stateManager.pathRegexCache.set(cacheKey, rx);
-  return rx;
+
+  const tokenNames: string[] = [];
+  const paramRegex = /{([^}]+)}/g;
+  let match: RegExpExecArray | null;
+  while ((match = paramRegex.exec(openApiPath)) !== null) {
+    const token = match[1];
+    if (token) {
+      tokenNames.push(token);
+    }
+  }
+
+  const segments = openApiPath.split(/{[^}]+}/);
+  const escapedSegments = segments.map((seg) => escapeRegex(seg));
+  const pattern = escapedSegments.join('([^/]+)');
+  const regex = new RegExp('^' + pattern + '$');
+
+  const compiled: CompiledPathRoute = { regex, tokenNames };
+  stateManager.pathRegexCache.set(cacheKey, compiled);
+  return compiled;
 }
 
-function findExactPathMatch(
+export function findExactPathMatch(
   spec: OpenAPIV3.Document,
   normalizedPath: string
 ): string | null {
@@ -47,20 +76,47 @@ function findExactPathMatch(
   return normalizedPath;
 }
 
-function findDynamicPathMatch(
+function extractParamsFromMatch(
+  tokenNames: string[],
+  match: RegExpExecArray
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  for (let i = 0; i < tokenNames.length; i++) {
+    const name = tokenNames[i];
+    const rawVal = match[i + 1];
+    if (name !== undefined && rawVal !== undefined) {
+      params[name] = safeDecodeURIComponent(rawVal);
+    }
+  }
+  return params;
+}
+
+export function findDynamicPathMatchWithParams(
   spec: OpenAPIV3.Document,
   normalizedPath: string
-): string | null {
+): RouteMatchResult | null {
   for (const openApiPath of Object.keys(spec.paths)) {
-    const pathRegExp = convertOpenApiPathToRegExp(openApiPath);
-    if (pathRegExp.test(normalizedPath)) {
-      return openApiPath;
+    const compiled = compilePathRoute(openApiPath);
+    const execMatch = compiled.regex.exec(normalizedPath);
+    if (execMatch) {
+      const extractedPathParams = extractParamsFromMatch(
+        compiled.tokenNames,
+        execMatch
+      );
+      return {
+        matchedPath: openApiPath,
+        extractedPathParams,
+        isStatic: compiled.tokenNames.length === 0
+      };
     }
   }
   return null;
 }
 
-function matchPath(spec: OpenAPIV3.Document, inputPath: string): string | null {
+export function matchPathWithParams(
+  spec: OpenAPIV3.Document,
+  inputPath: string
+): RouteMatchResult | null {
   if (!spec?.paths) {
     return null;
   }
@@ -68,9 +124,19 @@ function matchPath(spec: OpenAPIV3.Document, inputPath: string): string | null {
 
   const exactMatch = findExactPathMatch(spec, normalizedPath);
   if (exactMatch) {
-    return exactMatch;
+    return {
+      matchedPath: exactMatch,
+      extractedPathParams: {},
+      isStatic: true
+    };
   }
-  return findDynamicPathMatch(spec, normalizedPath);
+
+  return findDynamicPathMatchWithParams(spec, normalizedPath);
+}
+
+export function matchPath(spec: OpenAPIV3.Document, inputPath: string): string | null {
+  const result = matchPathWithParams(spec, inputPath);
+  return result ? result.matchedPath : null;
 }
 
 function extractPathnameWithoutQueryParams(pathString: string): string {
@@ -329,6 +395,8 @@ export interface OperationRequestContract {
   matchedContentType: string | null;
   parameters: ResolvedParameter[];
   templatePathParamNames: string[];
+  matchedPath: string;
+  extractedPathParams: Record<string, string>;
 }
 
 function resolveRequestMediaTypeSchema(options: {
@@ -513,11 +581,13 @@ export function getRequestContract(
 ): OperationRequestContract {
   const { spec, path, method, contentType } = options;
   const pathWithoutQueryParams = extractPathnameWithoutQueryParams(path);
-  const matchedPath = matchPath(spec, pathWithoutQueryParams);
+  const routeMatch = matchPathWithParams(spec, pathWithoutQueryParams);
 
-  if (!matchedPath) {
+  if (!routeMatch) {
     throw new Error(`Path not found in OpenAPI: ${pathWithoutQueryParams}`);
   }
+
+  const { matchedPath, extractedPathParams } = routeMatch;
 
   const operation = getOperation({
     spec,
@@ -549,6 +619,8 @@ export function getRequestContract(
     hasRequestBody,
     matchedContentType,
     parameters,
-    templatePathParamNames: extractTemplatePathParamNames(matchedPath)
+    templatePathParamNames: extractTemplatePathParamNames(matchedPath),
+    matchedPath,
+    extractedPathParams
   };
 }

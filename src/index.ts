@@ -9,7 +9,11 @@ export {
 export {
   assertRequestMatchesOpenApi,
   assertRequest,
-  type OpenAPIRequestValidatorInput
+  type OpenAPIRequestValidatorInput,
+  type OpenAPIRequestValidatorInputBase,
+  type PolymorphicRequest,
+  type FetchLikeRequest,
+  type NodeLikeRequest
 } from './assertions/assertRequestMatchesOpenApi.js';
 export {
   ValidationContext,

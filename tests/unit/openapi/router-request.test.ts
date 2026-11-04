@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getRequestContract } from '../../../src/openapi/router.js';
+import {
+  getRequestContract,
+  matchPathWithParams,
+  type RouteMatchResult
+} from '../../../src/openapi/router.js';
 import { loadSpec } from '../../../src/openapi/loader.js';
 import { DocumentBuilder } from '../../helpers/DocumentBuilder.js';
 
@@ -290,4 +294,117 @@ describe('openapi/router - getRequestContract', () => {
       })
     ).toThrow(/not declared/i);
   });
+
+  it('populates matchedPath and extractedPathParams on the returned contract', async () => {
+    const spec = await loadSpec(fixturePath);
+    const contract = getRequestContract({
+      spec,
+      path: '/users/42',
+      method: 'get',
+      contentType: 'application/json'
+    });
+
+    expect(contract.matchedPath).toBe('/users/{id}');
+    expect(contract.extractedPathParams).toEqual({ id: '42' });
+  });
 });
+
+describe('openapi/router - matchPathWithParams', () => {
+  it('returns exact static match with isStatic true and empty extractedPathParams', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/users/me');
+
+    const expected: RouteMatchResult = {
+      matchedPath: '/users/me',
+      extractedPathParams: {},
+      isStatic: true
+    };
+    expect(result).toEqual(expected);
+  });
+
+  it('prioritizes exact static route over dynamic route template', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/users/me');
+
+    expect(result?.isStatic).toBe(true);
+    expect(result?.matchedPath).toBe('/users/me');
+    expect(result?.extractedPathParams).toEqual({});
+  });
+
+  it('extracts single path parameter into key-value pair from dynamic route', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/users/42');
+
+    const expected: RouteMatchResult = {
+      matchedPath: '/users/{id}',
+      extractedPathParams: { id: '42' },
+      isStatic: false
+    };
+    expect(result).toEqual(expected);
+  });
+
+  it('extracts multiple path parameters across multiple route segments', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(
+      spec,
+      '/orgs/acme/teams/engineering/members/ada'
+    );
+
+    const expected: RouteMatchResult = {
+      matchedPath: '/orgs/{orgId}/teams/{teamId}/members/{memberId}',
+      extractedPathParams: {
+        orgId: 'acme',
+        teamId: 'engineering',
+        memberId: 'ada'
+      },
+      isStatic: false
+    };
+    expect(result).toEqual(expected);
+  });
+
+  it('decodes percent-encoded URI parameter values', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/items/item%20name');
+
+    expect(result?.extractedPathParams).toEqual({ itemName: 'item name' });
+  });
+
+  it('decodes percent-encoded plus symbols properly', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/tags/c%2B%2B');
+
+    expect(result?.extractedPathParams).toEqual({ tagName: 'c++' });
+  });
+
+  it('supports template path input as exact match when template exists in spec', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/users/{id}');
+
+    expect(result?.matchedPath).toBe('/users/{id}');
+    expect(result?.isStatic).toBe(true);
+  });
+
+  it('returns null when no route matches', async () => {
+    const spec = await loadSpec(fixturePath);
+
+    const result = matchPathWithParams(spec, '/nonexistent/path');
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when spec has no paths', () => {
+    const spec = new DocumentBuilder().build();
+
+    const result = matchPathWithParams(spec, '/users/42');
+
+    expect(result).toBeNull();
+  });
+});
+

@@ -328,6 +328,36 @@ interface CoerceSingleValueArgs {
   ctx?: ValidationContext | undefined;
 }
 
+function coerceObjectProperties(args: CoerceSingleValueArgs): unknown {
+  const { value, schema, tracker, customFormats, ctx } = args;
+  if (!isPlainObject(value)) {
+    return value;
+  }
+  const properties =
+    (schema.properties as
+      | Record<string, OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject>
+      | undefined) ?? {};
+  const additionalSchema = isPlainObject(schema.additionalProperties)
+    ? (schema.additionalProperties as
+        | OpenAPIV3.SchemaObject
+        | OpenAPIV3.ReferenceObject)
+    : undefined;
+  const result: Record<string, unknown> = { ...value };
+  for (const [key, propVal] of Object.entries(value)) {
+    const propSchema = properties[key] ?? additionalSchema;
+    if (propSchema) {
+      result[key] = coerceHeaderValue({
+        value: propVal,
+        schema: propSchema,
+        tracker,
+        customFormats,
+        ctx
+      });
+    }
+  }
+  return result;
+}
+
 function coerceSingleValue(args: CoerceSingleValueArgs): unknown {
   const { value, schema, tracker, customFormats, ctx } = args;
   switch (schema.type) {
@@ -338,6 +368,8 @@ function coerceSingleValue(args: CoerceSingleValueArgs): unknown {
       return coerceBoolean(value);
     case 'array':
       return coerceArray({ value, schema, tracker, customFormats, ctx });
+    case 'object':
+      return coerceObjectProperties(args);
     default:
       if (isArraySchema(schema)) {
         return coerceArray({ value, schema, tracker, customFormats, ctx });

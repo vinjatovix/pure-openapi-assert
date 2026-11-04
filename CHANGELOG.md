@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.0
+
+### Added
+
+- **Direct `Request` and Fetch/Node object support:** Pass native Fetch `Request` or Node-like request objects directly to `assertRequestMatchesOpenApi` (or alias `assertRequest`) via `request` or `req`. Body streams on native Fetch requests are cloned internally so `request.bodyUsed` remains `false`.
+- **Automatic path parameter extraction:** Pass concrete paths (e.g. `/users/42`) or full URLs (`https://api.example.com/users/42`) without manually providing `pathParams`. Route matching resolves static routes first and extracts dynamic path parameters automatically with URI percent-decoding.
+- **OpenAPI 3.0 `deepObject` query deserialization:** Query parameters with bracket syntax (e.g. `filter[category][eq]=organic&filter[limit]=10`) are deserialized into nested object structures and validated against schema with type coercion.
+- **Flexible query input formats:** The `query` property now accepts plain objects, `URLSearchParams` instances, or raw query strings (`?page=1`).
+- **Strict parameter validation mode (`strictParameters: true`):** Optional strict mode to reject undeclared query parameters and headers, while automatically exempting standard RFC transport and security headers (`host`, `user-agent`, `authorization`, `content-type`, `content-length`, `connection`, `cache-control`, `cookie`, `accept`).
+- **New exported types:** `PolymorphicRequest`, `FetchLikeRequest`, `NodeLikeRequest`, `OpenAPIRequestValidatorInputBase`.
+
 ## 2.1.0
 
 ### Added
