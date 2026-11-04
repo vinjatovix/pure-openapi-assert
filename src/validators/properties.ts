@@ -48,7 +48,7 @@ function mergeAllOfProperties(args: {
   return { props: mergedProps, clean: isClean };
 }
 
-function resolveAllProperties(args: {
+export function resolveAllProperties(args: {
   schema: OpenAPIV3.SchemaObject;
   spec?: OpenAPIV3.Document | undefined;
   visited?: Set<unknown> | undefined;

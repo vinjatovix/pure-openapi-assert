@@ -7,7 +7,9 @@ import {
   formatAdditionalPropertiesError
 } from '../core/errors.js';
 import { describeType, isPlainObject, isSchemaObject } from '../core/utils.js';
+import { type ValidationDirection } from '../core/ValidationContext.js';
 import { type ValidationArgs } from './args.js';
+import { resolveAllProperties } from './properties.js';
 
 function validateObjectBounds(args: ValidationArgs): void {
   const { schema, ctx, keys } = args;
@@ -24,6 +26,21 @@ function validateObjectBounds(args: ValidationArgs): void {
   }
 }
 
+/**
+ * A `required` property is not actually required in the opposite direction it
+ * belongs to (OpenAPI 3.0.3): a `readOnly` property is required on the response
+ * only, a `writeOnly` property on the request only.
+ */
+function isRequiredSkippedByDirection(
+  prop: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | undefined,
+  direction: ValidationDirection
+): boolean {
+  if (!isSchemaObject(prop)) return false;
+  if (direction === 'request' && prop.readOnly === true) return true;
+  if (direction === 'response' && prop.writeOnly === true) return true;
+  return false;
+}
+
 function validateRequiredFields(
   args: ValidationArgs<Record<string, unknown>>
 ): void {
@@ -31,12 +48,14 @@ function validateRequiredFields(
   const required = schema.required;
   if (!required) return;
 
+  const { props } = resolveAllProperties({ schema, spec: ctx.spec });
+
   for (const key of required) {
-    if (obj[key] === undefined) {
-      ctx.pushPath(key);
-      ctx.addError(formatRequiredFieldError());
-      ctx.popPath();
-    }
+    if (obj[key] !== undefined) continue;
+    if (isRequiredSkippedByDirection(props[key], ctx.direction)) continue;
+    ctx.pushPath(key);
+    ctx.addError(formatRequiredFieldError());
+    ctx.popPath();
   }
 }
 

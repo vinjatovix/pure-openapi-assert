@@ -2,6 +2,7 @@ import type { OpenAPIV3 } from 'openapi-types';
 import {
   formatNullableError,
   formatWriteOnlyError,
+  formatReadOnlyError,
   formatRequiredPropertyError,
   formatCyclicNotSchemaError,
   formatProhibitedSchemaError
@@ -48,8 +49,16 @@ function preValidate(args: ValidationArgs): boolean {
     ctx.addWarning('Schema property is deprecated');
   }
 
-  if (schema.writeOnly && value !== undefined) {
+  // readOnly/writeOnly are direction-dependent (OpenAPI 3.0.3): a writeOnly
+  // field must not appear in a response, a readOnly field must not appear in a
+  // request. The opposite direction is where each one legitimately belongs.
+  if (schema.writeOnly && value !== undefined && ctx.direction === 'response') {
     ctx.addError(formatWriteOnlyError());
+    return false;
+  }
+
+  if (schema.readOnly && value !== undefined && ctx.direction === 'request') {
+    ctx.addError(formatReadOnlyError());
     return false;
   }
 

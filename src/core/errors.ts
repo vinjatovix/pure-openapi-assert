@@ -150,6 +150,10 @@ export function formatWriteOnlyError(): string {
   return 'Field is writeOnly and must not be present in the response';
 }
 
+export function formatReadOnlyError(): string {
+  return 'Field is readOnly and must not be present in the request';
+}
+
 export function formatRequiredPropertyError(): string {
   return 'Field is required but received undefined';
 }

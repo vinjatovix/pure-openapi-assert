@@ -25,7 +25,8 @@ function isValidOpenAPIV3Document(spec: unknown): spec is OpenAPIV3.Document {
     return false;
   }
 
-  const hasOpenapi = typeof spec.openapi === 'string';
+  const hasOpenapi =
+    typeof spec.openapi === 'string' && /^3\.0\.\d+$/.test(spec.openapi);
   const hasInfo = isPlainObject(spec.info);
   const hasPaths = isPlainObject(spec.paths);
 

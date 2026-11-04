@@ -3,6 +3,17 @@ export const DEFAULT_CONTENT_TYPE = 'application/json';
 export const DUMMY_BASE_URL = 'http://localhost';
 export const HTTP_STATUS_NO_CONTENT = 204;
 
+// OpenAPI 3.0 parameter serialization defaults (style per location).
+// `explode` defaults to `true` only for `form`, `false` otherwise.
+export const PARAM_STYLE_DEFAULTS: Record<
+  'path' | 'query' | 'header',
+  'form' | 'simple'
+> = {
+  query: 'form',
+  path: 'simple',
+  header: 'simple'
+};
+
 // Type & Length Validation Constraints
 export const FLOAT32_MAX = 3.40282347e38;
 export const INT32_MAX = 2147483647;

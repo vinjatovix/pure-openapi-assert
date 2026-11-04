@@ -203,6 +203,11 @@ export class SchemaBuilder {
     return this;
   }
 
+  readOnly(value: boolean = true): this {
+    this.schema.readOnly = value;
+    return this;
+  }
+
   title(value: string): this {
     this.schema.title = value;
     return this;
