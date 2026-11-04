@@ -122,36 +122,67 @@ async function testMyAPI() {
 
 ---
 
-## 📤 Validating Requests (Frontend Use)
+## 📤 Validating Requests (Frontend & Backend Use)
 
-Besides responses, you can validate **outgoing requests** against the same OpenAPI 3.0
-contract — ideal for catching malformed payloads in the frontend *before* they ever hit the
-network. The input is **explicit fields** (no `Request`/`fetch` object), so it works
-identically in the browser and in Node.
+Besides responses, you can validate **outgoing or incoming requests** against the same OpenAPI 3.0 contract. `assertRequestMatchesOpenApi` (or alias `assertRequest`) supports both **direct Request / Fetch objects** (with body stream preservation) and **explicit fields**:
+
+### 1. Direct Fetch / Node Request Objects
+Pass native Fetch `Request` or Node-like request objects directly via `request` (or `req`). The library automatically extracts the URL, method, headers, and body (cloning Fetch request streams internally so `request.bodyUsed` remains `false`):
 
 ```typescript
-import { assertRequestMatchesOpenApi } from 'pure-openapi-assert';
+import { assertRequest } from 'pure-openapi-assert';
 
-// Build the request you are about to send, and validate it first:
-await assertRequestMatchesOpenApi({
-  specPath: 'docs/openapi.yaml',
-  path: '/users/{id}',          // route pattern (or a concrete path like /users/42)
-  method: 'PUT',
-  pathParams: { id: '42' },     // case-sensitive
-  query: { page: '2' },         // case-sensitive; arrays honor style/explode
-  headers: { 'x-tenant-id': 'acme' }, // case-insensitive (HTTP semantics)
-  body: { name: 'Ada', age: 30 },     // object or JSON text (parsed losslessly)
-  contentType: 'application/json'      // optional, defaults to application/json
+const request = new Request('https://api.example.com/users/42', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Ada Lovelace' })
 });
-// Resolves if the request is valid; throws with a structured error otherwise, e.g.:
-//   OpenAPI contract violation for PUT /users/{id}.
-//   Validation errors:
-//   - [body.age] Expected integer, received string
-//   - [query.page] Expected integer, received string
-//   - [header.X-Tenant-Id] Missing required header parameter: X-Tenant-Id
+
+// Auto-extracts path (/users/42 -> { id: '42' }), headers, and body!
+await assertRequest({
+  specPath: 'docs/openapi.yaml',
+  request
+});
+
+// Original request stream remains unconsumed:
+expect(request.bodyUsed).toBe(false);
 ```
 
-An **alias** `assertRequest` is exported too (mirroring `assertResponse`).
+### 2. Concrete URLs & Automatic Path Parameter Extraction
+Pass concrete paths (like `/users/42`) without needing to manually parse `{ id: '42' }` into `pathParams`. The assertion engine uses two-stage route matching (exact static priority, then regex token capture with URL decoding) to map to route templates like `/users/{id}`:
+
+```typescript
+await assertRequest({
+  specPath: 'docs/openapi.yaml',
+  url: 'https://api.example.com/users/42?page=1',
+  method: 'GET'
+});
+```
+
+### 3. OpenAPI 3.0 `deepObject` Query Deserialization
+Query parameters with bracket notation (e.g. `filter[category][eq]=organic&filter[limit]=10`) are deserialized into nested object structures and validated against the operation's parameter schema with integer/boolean coercion:
+
+```typescript
+await assertRequest({
+  specPath: 'docs/openapi.yaml',
+  path: '/plants',
+  method: 'GET',
+  query: 'filter[category][eq]=organic&filter[limit]=10'
+});
+```
+
+### 4. Strict Parameter Mode (`strictParameters: true`)
+Catch undeclared query parameters or headers before deployment. Standard RFC transport and security headers (`host`, `user-agent`, `authorization`, `content-type`, etc.) are automatically exempted:
+
+```typescript
+await assertRequest({
+  specPath: 'docs/openapi.yaml',
+  path: '/users/42',
+  method: 'GET',
+  query: { unexpectedParam: 'bad' },
+  strictParameters: true // Throws: [query.unexpectedParam] Query parameter 'unexpectedParam' is not declared
+});
+```
 
 ### Parity and differences with response validation
 
@@ -166,13 +197,15 @@ verdict** for the same payload (same pass/fail and same error path) — **except
 
 | Aspect | Request validation |
 |--------|--------------------|
-| Input | Explicit fields (`body`, `query`, `pathParams`, `headers`, `contentType`) — no `Request`/`fetch` object |
+| Input | Direct `Request` / `fetch` object (`request` or `req`), full `url`, or explicit fields (`body`, `query`, `pathParams`, `headers`) |
+| Path extraction | Automatically extracts path variables from concrete paths (`/users/42` -> `{ id: '42' }`) with static route precedence |
+| Query styles | Full OpenAPI 3.0 `deepObject` bracket deserialization, arrays (`items[]=a`), and repeated keys (`?tags=red&tags=blue`) |
+| Strict parameters | Optional `strictParameters: true` rejects undeclared query/headers while exempting RFC transport headers |
 | Body source | `requestBody` schema matched by `Content-Type` (RFC 7231; `charset`/`boundary` ignored; wildcards supported) |
 | Required body | A required `requestBody` that is absent fails; an optional one that is absent passes |
 | Parameters | `path`, `query` and `header` validated with schema, required-ness, and the full OpenAPI 3.0 `style`/`explode` matrix |
 | Error prefixes | `[body.*]`, `[query.*]`, `[path.*]`, `[header.*]` |
 | Name matching | `header` is case-insensitive (canonical spec name kept in the prefix); `query`/`path` are case-sensitive |
-| Undeclared params | `query`/`header` not declared in the spec are permissive (no error); the body is governed by its own schema (e.g. `additionalProperties`) |
 | `readOnly`/`writeOnly` | Directional (OpenAPI 3.0.3): a `writeOnly` field belongs to the **request** (allowed, and not required on the response); a `readOnly` field belongs to the **response** (rejected if present in a request, and not required on the request — even when merged via `allOf`) |
 
 ---

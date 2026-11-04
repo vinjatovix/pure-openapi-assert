@@ -1,6 +1,12 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { describe, expect, it } from 'vitest';
-import { deserializeParameter } from '../../../src/core/deserialize.js';
+import {
+  deserializeParameter,
+  deserializeQueryParameters,
+  parseBracketKey
+} from '../../../src/core/deserialize.js';
+import { ValidationContext } from '../../../src/core/ValidationContext.js';
+import type { ResolvedParameter } from '../../../src/openapi/router.js';
 
 const arraySchema: OpenAPIV3.SchemaObject = {
   type: 'array',
@@ -384,3 +390,199 @@ describe('core/deserialize - style/explode matrix', () => {
     });
   });
 });
+
+describe('core/deserialize - parseBracketKey', () => {
+  it('parses single-level bracket key', () => {
+    const rawKey = 'filter[status]';
+
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toEqual({ rootKey: 'filter', segments: ['status'] });
+  });
+
+  it('parses multi-level bracket key', () => {
+    const rawKey = 'filter[category][eq]';
+
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toEqual({
+      rootKey: 'filter',
+      segments: ['category', 'eq']
+    });
+  });
+
+  it('parses empty array brackets', () => {
+    const rawKey = 'items[]';
+
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toEqual({ rootKey: 'items', segments: [''] });
+  });
+
+  it('parses indexed array brackets', () => {
+    const rawKey = 'items[0]';
+
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toEqual({ rootKey: 'items', segments: ['0'] });
+  });
+
+  it.each([
+    '__proto__[polluted]',
+    'obj[__proto__]',
+    'obj[constructor]',
+    'obj[prototype]',
+    'constructor[polluted]'
+  ])('returns null to reject prototype pollution key: %s', (rawKey) => {
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toBeNull();
+  });
+
+  it.each([
+    'filter[a=b',
+    'filter]=b',
+    'filter[[a]]=b',
+    'filter[a][',
+    '[a]',
+    'filter[a]b'
+  ])('returns null on malformed bracket syntax: %s', (rawKey) => {
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null for non-bracket key', () => {
+    const rawKey = 'page';
+
+    const result = parseBracketKey(rawKey);
+
+    expect(result).toBeNull();
+  });
+});
+
+describe('core/deserialize - deserializeQueryParameters', () => {
+  const declaredParameters: ResolvedParameter[] = [
+    {
+      name: 'filter',
+      in: 'query',
+      required: false,
+      schema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string' },
+          category: {
+            type: 'object',
+            properties: { eq: { type: 'string' } }
+          }
+        }
+      },
+      style: 'deepObject',
+      explode: true
+    },
+    {
+      name: 'items',
+      in: 'query',
+      required: false,
+      schema: {
+        type: 'array',
+        items: { type: 'string' }
+      },
+      style: 'form',
+      explode: true
+    }
+  ];
+
+  it('reconstructs nested objects from single and multi-level bracket keys', () => {
+    const queryInput = 'filter[status]=active&filter[category][eq]=organic';
+    const ctx = new ValidationContext();
+
+    const result = deserializeQueryParameters({
+      declaredParameters,
+      queryInput,
+      ctx
+    });
+
+    expect(result).toEqual({
+      filter: {
+        status: 'active',
+        category: { eq: 'organic' }
+      }
+    });
+    expect(ctx.hasErrors()).toBe(false);
+  });
+
+  it('reconstructs arrays for array-typed parameters using empty brackets', () => {
+    const queryInput = 'items[]=a&items[]=b';
+    const ctx = new ValidationContext();
+
+    const result = deserializeQueryParameters({
+      declaredParameters,
+      queryInput,
+      ctx
+    });
+
+    expect(result).toEqual({
+      items: ['a', 'b']
+    });
+  });
+
+  it('reconstructs arrays for array-typed parameters using indexed brackets', () => {
+    const queryInput = 'items[0]=a&items[1]=b';
+    const ctx = new ValidationContext();
+
+    const result = deserializeQueryParameters({
+      declaredParameters,
+      queryInput,
+      ctx
+    });
+
+    expect(result).toEqual({
+      items: ['a', 'b']
+    });
+  });
+
+  it('reports structured error when a scalar value is provided for an object-typed parameter', () => {
+    const queryInput = 'filter=active';
+    const ctx = new ValidationContext();
+
+    deserializeQueryParameters({
+      declaredParameters,
+      queryInput,
+      ctx
+    });
+
+    expect(ctx.hasErrors()).toBe(true);
+    expect(ctx.errors[0]?.path).toBe('query.filter');
+    expect(ctx.errors[0]?.message).toContain('Expected type object, received string');
+  });
+
+  it('reports structured error on malformed bracket syntax without throwing an exception', () => {
+    const queryInput = { 'filter[a=b': 'active' };
+    const ctx = new ValidationContext();
+
+    deserializeQueryParameters({
+      declaredParameters,
+      queryInput,
+      ctx
+    });
+
+    expect(ctx.hasErrors()).toBe(true);
+    expect(ctx.errors[0]?.path).toBe('query.filter');
+    expect(ctx.errors[0]?.message).toContain("Malformed bracket syntax in query parameter 'filter[a=b'");
+  });
+
+  it('protects against prototype pollution and does not pollute Object prototype', () => {
+    const queryInput = '__proto__[polluted]=true&filter[constructor][polluted]=true';
+    const ctx = new ValidationContext();
+
+    deserializeQueryParameters({
+      declaredParameters,
+      queryInput,
+      ctx
+    });
+
+    expect(Object.prototype).not.toHaveProperty('polluted');
+  });
+});
+

@@ -18,7 +18,9 @@ function makeContract(
     hasRequestBody: false,
     matchedContentType: null,
     parameters,
-    templatePathParamNames
+    templatePathParamNames,
+    matchedPath: '/test',
+    extractedPathParams: {}
   };
 }
 
@@ -187,5 +189,126 @@ describe('validators/parameters - validateParameters', () => {
     });
 
     expect(ctx.hasErrors()).toBe(false);
+  });
+
+  describe('strictParameters mode', () => {
+    it('reports error when an undeclared query parameter is present', () => {
+      const contract = makeContract([
+        stringParam({ name: 'page', in: 'query' })
+      ]);
+      const input = {
+        query: { page: '1', unknownParam: 'val' },
+        strictParameters: true
+      };
+      const ctx = new ValidationContext();
+
+      validateParameters({
+        contract,
+        input,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]?.path).toBe('query.unknownParam');
+      expect(ctx.errors[0]?.message).toBe(
+        "Query parameter 'unknownParam' is not declared in OpenAPI contract"
+      );
+    });
+
+    it('reports error when an undeclared custom header is present', () => {
+      const contract = makeContract([]);
+      const input = {
+        headers: { 'X-Custom-Unknown': 'secret' },
+        strictParameters: true
+      };
+      const ctx = new ValidationContext();
+
+      validateParameters({
+        contract,
+        input,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.hasErrors()).toBe(true);
+      expect(ctx.errors[0]?.path).toBe('header.X-Custom-Unknown');
+      expect(ctx.errors[0]?.message).toBe(
+        "Header 'X-Custom-Unknown' is not declared in OpenAPI contract"
+      );
+    });
+
+    it.each([
+      'host',
+      'user-agent',
+      'accept',
+      'content-type',
+      'content-length',
+      'connection',
+      'cache-control',
+      'authorization',
+      'cookie',
+      'User-Agent',
+      'Authorization'
+    ])('exempts standard RFC transport or security header: %s', (headerName) => {
+      const contract = makeContract([]);
+      const input = {
+        headers: { [headerName]: 'val' },
+        strictParameters: true
+      };
+      const ctx = new ValidationContext();
+
+      validateParameters({
+        contract,
+        input,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.hasErrors()).toBe(false);
+    });
+
+    it('recognizes root key of deepObject query as declared parameter', () => {
+      const contract = makeContract([
+        stringParam({
+          name: 'filter',
+          in: 'query',
+          schema: { type: 'object' }
+        })
+      ]);
+      const input = {
+        query: { 'filter[page]': '1' },
+        strictParameters: true
+      };
+      const ctx = new ValidationContext();
+
+      validateParameters({
+        contract,
+        input,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.hasErrors()).toBe(false);
+    });
+
+    it('allows undeclared parameters when strictParameters is false or omitted', () => {
+      const contract = makeContract([]);
+      const input = {
+        query: { undeclared: 'ok' },
+        headers: { 'x-undeclared': 'ok' },
+        strictParameters: false
+      };
+      const ctx = new ValidationContext();
+
+      validateParameters({
+        contract,
+        input,
+        ctx,
+        validateShape
+      });
+
+      expect(ctx.hasErrors()).toBe(false);
+    });
   });
 });

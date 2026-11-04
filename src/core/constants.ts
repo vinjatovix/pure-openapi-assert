@@ -47,6 +47,19 @@ export const JSON_POINTER_TILDE_REGEX = /~0/g;
 
 // Routing and Wildcard matching regular expressions
 export const REGEX_ESCAPE_CHARS_REGEX: RegExp = /[.*+?^${}()|[\]\\]/g;
-export const OPENAPI_PATH_PARAM_REGEX: RegExp = /\\{[^\\}]+\\}/g;
 export const ESCAPED_WILDCARD_REGEX: RegExp = /\\\*/g;
 export const TRAILING_SLASHES_REGEX: RegExp = /\/+$/;
+
+// RFC transport & security headers exempt from strict parameter validation
+export const EXEMPT_RFC_TRANSPORT_HEADERS = new Set<string>([
+  'host',
+  'user-agent',
+  'accept',
+  'content-type',
+  'content-length',
+  'connection',
+  'cache-control',
+  'authorization',
+  'cookie'
+]);
+

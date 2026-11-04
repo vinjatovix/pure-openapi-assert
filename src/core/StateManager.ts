@@ -7,6 +7,11 @@ export interface SpecCacheEntry {
   mtimeMs: number;
 }
 
+export interface CompiledPathRoute {
+  regex: RegExp;
+  tokenNames: string[];
+}
+
 export class StateManager {
   private readonly fileSpecCache = new Map<string, SpecCacheEntry>();
   private readonly pendingSpecLoads = new Map<
@@ -20,7 +25,7 @@ export class StateManager {
     WeakMap<object, FIFOCache<string, OpenAPIV3.SchemaObject | undefined>>
   >();
 
-  readonly pathRegexCache = new FIFOCache<string, RegExp>();
+  readonly pathRegexCache = new FIFOCache<string, CompiledPathRoute>();
   readonly wildcardRegexCache = new FIFOCache<string, RegExp>();
   readonly formatRegexCache = new FIFOCache<string, RegExp>();
 
